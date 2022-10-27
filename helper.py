@@ -6,7 +6,7 @@ import time
 import argparse
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtQml import QQmlApplicationEngine
 import qml_rc
@@ -29,7 +29,18 @@ def positionFill(w, h, d):
     y = int((d-h)/2)
     return x, y, w, h
 
-
+def extract_tags_gallerydl(text):
+    j = json.loads(text)
+    booru = j["category"]
+    tags = []
+    if booru == "danbooru" or booru == "sankaku":
+        tags = j["tag_string"].split()
+    elif booru == "gelbooru" or booru == "rule34":
+        tags = j["tags"].split()
+    else:
+        print(f"ERROR: {booru} is UNSUPPORTED!")
+        exit(1)
+    return [t.strip() for t in tags]
 def extract_tags(text):
     seperator = " "
     if "," in text:
@@ -343,6 +354,12 @@ def get_images(images_path, metadata_path):
                 if os.path.isfile(m):
                     tags = get_tags(m)
                     break
+            else:
+                g = f + ".json"
+                if os.path.isfile(m):
+                    tags = get_tags_gallerydl(m)
+                    break
+
             img.tags = tags
         images += [img]
 
@@ -351,6 +368,10 @@ def get_images(images_path, metadata_path):
 def get_tags(tag_file):
     with open(tag_file, "r") as f:
         return extract_tags(f.read())
+
+def get_tags_gallerydl(tag_file):
+    with open(tag_file, "r") as f:
+        return extract_tags_gallerydl(f.read())
 
 def get_tags_from_csv(path):
     tags = []
@@ -378,7 +399,7 @@ if not in_folder:
     print("ERROR: specify an input folder!")
     exit(1)
 if not os.path.isdir(in_folder):
-    print("ERROR: input folder '{in_folder}' does not exist!")
+    print(f"ERROR: input folder '{in_folder}' does not exist!")
     exit(1)
 
 if not out_folder:
@@ -386,7 +407,7 @@ if not out_folder:
     if not os.path.exists(out_folder):
         os.makedirs(out_folder)
 if not os.path.isdir(out_folder):
-    print("ERROR: output folder '{out_folder}' does not exist!")
+    print(f"ERROR: output folder '{out_folder}' does not exist!")
     exit(1)
 
 if not meta_folder:
@@ -394,25 +415,28 @@ if not meta_folder:
     if not os.path.exists(meta_folder):
         os.makedirs(meta_folder)
 if not os.path.isdir(meta_folder):
-    print("ERROR: metadata folder '{out_folder}' does not exist!")
+    print(f"ERROR: metadata folder '{out_folder}' does not exist!")
     exit(1)
 
 if not tags_file:
     tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
 if not os.path.isfile(tags_file):
-    print("ERROR: tags file '{tags_file}' does not exist!")
+    print(f"ERROR: tags file '{tags_file}' does not exist!")
     exit(1)
 
 if not dim:
     dim = 1024
 if dim % 32 != 0 or dim <= 0:
-    print("ERROR: dimension of '{dim}' is not valid!")
+    print(f"ERROR: dimension of '{dim}' is not valid!")
 
 
 images = get_images(in_folder, meta_folder)
 tags = get_tags_from_csv(tags_file)
 print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 
+
+QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 app = QGuiApplication(sys.argv)
 backend = Backend(images, tags, out_folder, dim, app)
 
