@@ -1,6 +1,6 @@
 ## Helper GUI for manual tagging/cropping
 --------
-GUI to help manual tagging and cropping. Written in Python/Qt5.
+A GUI to help with manual tagging and cropping. Written in Python/Qt5.
 ![example](https://github.com/arenatemp/sd-tagging-helper/raw/master/screenshot.png)
 
 ### Requirements
@@ -15,6 +15,7 @@ Operates on a folder of input images, each image can optionally have a tag file:
 img0000.png
 WITH img0000.txt OR img0000.png.txt
 ```
+The txt file should contain comma seperated tags.
 These inputs are left untouched, all changes made are saved into the metadata folder as json files. So changes are persistant but also no data loss is possible.
 
 When ready the inputs can be packaged into the output folder, in this folder the images will be cropped/resized and the modified tags written.
