@@ -32,6 +32,7 @@ def positionFill(w, h, d):
 def extract_tags_gallerydl(text):
     j = json.loads(text)
     booru = j["category"]
+    print(booru)
     tags = []
     if booru == "danbooru" or booru == "sankaku":
         tags = j["tag_string"].split()
@@ -40,7 +41,8 @@ def extract_tags_gallerydl(text):
     else:
         print(f"ERROR: {booru} is UNSUPPORTED!")
         exit(1)
-    return [t.strip() for t in tags]
+    tags = [t.strip() for t in tags]
+    return tags
 def extract_tags(text):
     seperator = " "
     if "," in text:
@@ -356,9 +358,8 @@ def get_images(images_path, metadata_path):
                     break
             else:
                 g = f + ".json"
-                if os.path.isfile(m):
-                    tags = get_tags_gallerydl(m)
-                    break
+                if os.path.isfile(g):
+                    tags = get_tags_gallerydl(g)
 
             img.tags = tags
         images += [img]
@@ -434,6 +435,9 @@ images = get_images(in_folder, meta_folder)
 tags = get_tags_from_csv(tags_file)
 print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 
+if len(images) == 0:
+    print(f"ERROR: no images found!")
+    exit(1)
 
 QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
