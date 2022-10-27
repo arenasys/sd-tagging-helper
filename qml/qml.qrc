@@ -1,0 +1,34 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Main.qml</file>
+        <file>CenteredImage.qml</file>
+        <file>IconButton.qml</file>
+        <file>InfoToolTip.qml</file>
+        <file>Media.qml</file>
+        <file>Tags.qml</file>
+        <file>Search.qml</file>
+        <file>DraggableItem.qml</file>
+        <file>DraggableItemDropArea.qml</file>
+        <file>PopupWindow.qml</file>
+        <file>Combo.qml</file>
+
+        <file>icons/cross.svg</file>
+        <file>icons/plus.svg</file>
+        <file>icons/tick.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/trash.svg</file>
+        <file>icons/back.svg</file>
+        <file>icons/next.svg</file>
+        <file>icons/archive.svg</file>
+        <file>icons/window.svg</file>
+        <file>icons/reply.svg</file>
+        <file>icons/package.svg</file>
+        <file>icons/cube.svg</file>
+        <file>icons/bookshelf.svg</file>
+        <file>icons/bookmark.svg</file>
+        <file>icons/save.svg</file>
+        <file>icons/refresh.svg</file>
+        <file>icons/star-outline.svg</file>
+        <file>icons/star.svg</file>
+    </qresource>
+</RCC>
