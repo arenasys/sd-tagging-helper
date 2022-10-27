@@ -1,6 +1,8 @@
 ## Helper GUI for manual tagging/cropping
 --------
 GUI to help manual tagging and cropping. Written in Python/Qt5.
+![example](https://github.com/arenatemp/sd-tagging-helper/raw/master/screenshot.png)
+
 ### Requirements
 Pillow and PyQt5
 ```
