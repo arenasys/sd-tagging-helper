@@ -177,7 +177,7 @@ ApplicationWindow {
             anchors.top: controls.top
             width: height
             icon: "qrc:/icons/package.svg"
-            tooltip: "package outputs (f)"
+            tooltip: "package outputs"
             color: "#303030"
             working: packageWindow.visible
             onPressed: {

@@ -29,6 +29,20 @@ def positionFill(w, h, d):
     y = int((d-h)/2)
     return x, y, w, h
 
+
+def extract_tags(text):
+    seperator = " "
+    if "," in text:
+        seperator = ","
+    tags = [t.strip() for t in text.split(seperator)]
+    return tags
+
+def tags_to_prompt(tags):
+    tags = [t.replace("_", " ") for t in tags]
+    prompt = ", ".join(tags)
+    #prompt = re.sub(r'\([^)]*\)', '', prompt)
+    return prompt
+
 class Worker(QObject):
     currentCallback = pyqtSignal(int)
 
@@ -58,8 +72,7 @@ class Worker(QObject):
                 tags = img.tags
                 while len(", ".join(tags)) > 240:
                     tags = tags[:-1]
-                tags = [t.strip() for t in tags]
-                name = ", ".join(tags)
+                name = tags_to_prompt(tags)
                 illegal = '<>:"/\\|?*'
                 name = ''.join([c for c in name if not c in illegal])
             elif self.mode == 1:
@@ -127,7 +140,7 @@ class Img:
     
     def writePrompt(self, prompt_file):
         with open(prompt_file, "w") as f:
-            f.write(", ".join(self.tags))
+            f.write(tags_to_prompt(self.tags))
 
     def setCrop(self, x, y, s):
         if(self.ready and x == self.offset_x and y == self.offset_y and s == self.scale):
@@ -337,7 +350,7 @@ def get_images(images_path, metadata_path):
 
 def get_tags(tag_file):
     with open(tag_file, "r") as f:
-        return [t.strip() for t in f.read().split(",")]
+        return extract_tags(f.read())
 
 def get_tags_from_csv(path):
     tags = []

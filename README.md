@@ -26,6 +26,8 @@ The two modes of packaging are:
 Single image will save an image with the filename set to the prompt.
 Image/prompt pairs will save the image with its original name and a corresponding text file containing the prompt (like the input folder format)
 
+The square overlay shows the cropped view, position the image how you would like it cropped. Red indicates that the position has been modified but not saved.
+
 ### Usage
 The minimal usage is just specifying the input folder. A metadata and output folder will be created in the current directory, and the output dimension will be 1024x1024:
 ```
@@ -34,11 +36,12 @@ python helper.py --input "path/to/input/folder"
 
 ### Controls
 #### Mouse
-Middle mouse to drag the image.
-Scroll to zoom the image.
-Double click an active tag remove it.
-Double click an inactive tag to add it.
-Dividers can be dragged to resize the tag lists.
+```
+Middle mouse - drag the image
+Scroll - zoom the image
+Double click - removes an active tag or adds an inactive tag
+Left click - dividers can be dragged to resize the tag lists
+```
 #### Keyboard
 ```
 F - save metadata
