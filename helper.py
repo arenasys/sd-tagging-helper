@@ -266,7 +266,7 @@ class Backend(QObject):
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
-        self._current.writeCrop("out.png", self._dim)
+        #self._current.writeCrop("out.png", self._dim)
 
     @pyqtSlot()
     def saveMetadata(self):
