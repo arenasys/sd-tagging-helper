@@ -256,8 +256,8 @@ ApplicationWindow {
             } 
 
             onDoublePressed: {
-                backend.deleteTag(tag)
                 currentTagsList.remove(index)
+                backend.deleteTag(index)
             }
             
             onMoved: {
@@ -474,7 +474,7 @@ ApplicationWindow {
                 event.accepted = true
                 break;
             case Qt.Key_Delete:
-                backend.deleteTag(currentTagsList.active)
+                backend.deleteTag(currentTagsList.selected)
                 currentTagsList.active = ""
                 event.accepted = true
                 break;

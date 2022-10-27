@@ -145,8 +145,8 @@ class Img:
         self.tags += [tag]
         self.changed = True
 
-    def deleteTag(self, tag):
-        del self.tags[self.tags.index(tag)]
+    def deleteTag(self, idx):
+        del self.tags[idx]
         self.changed = True
     
     def moveTag(self, from_idx, to_idx):
@@ -245,11 +245,11 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
-    @pyqtSlot('QString')
-    def deleteTag(self, tag):
-        if not tag in self._current.tags:
+    @pyqtSlot(int)
+    def deleteTag(self, idx):
+        if idx < 0 or idx >= len(self._current.tags):
             return
-        self._current.deleteTag(tag)
+        self._current.deleteTag(idx)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 

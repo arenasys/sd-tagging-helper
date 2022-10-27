@@ -32,6 +32,27 @@ The minimal usage is just specifying the input folder. A metadata and output fol
 python helper.py --input "path/to/input/folder"
 ```
 
+### Controls
+#### Mouse
+Middle mouse to drag the image.
+Scroll to zoom the image.
+Double click an active tag remove it.
+Double click an inactive tag to add it.
+Dividers can be dragged to resize the tag lists.
+#### Keyboard
+```
+F - save metadata
+R - reset image position to last saved state
+N - auto position image. contain mode
+M - auto position image. fill mode
+WASD - move image
+
+LEFT  - previous image
+RIGHT - next image
+UP    - move selected tag up
+DOWN  - move selected tag down
+```
+
 ### Compiling
 If you change the GUI `.qml` files the `qml_rc.py` will need to be recompiled:
 ```
