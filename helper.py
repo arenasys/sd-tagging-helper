@@ -6,6 +6,7 @@ import os
 import json
 import time
 import argparse
+import platform
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt
@@ -16,6 +17,11 @@ import qml_rc
 CONFIG = "config.json"
 EXT = [".png", ".jpg", ".jpeg", ".webp"]
 MX_TAGS = 30
+
+MX_FILE = 250
+MX_PATH = 4000
+if platform.system() == "Windows":
+    MX_PATH = 250
 
 def get_metadata(image_file):
     tags = []
@@ -32,9 +38,6 @@ def get_metadata(image_file):
     return tags
 
 def get_images(images_path, metadata_path):
-    images_path = os.path.abspath(images_path)
-    metadata_path = os.path.abspath(metadata_path)
-
     images = []
 
     files = []
@@ -136,16 +139,16 @@ def get_edge_colors(img, vertical, inset=0.01, samples=16):
     return a_t, b_t, a_v, b_v
 
 def get_tags(tag_file):
-    with open(tag_file, "r") as f:
+    with open(tag_file, "r", encoding="utf-8") as f:
         return extract_tags(f.read())
 
 def get_tags_gallerydl(tag_file):
-    with open(tag_file, "r") as f:
+    with open(tag_file, "r", encoding="utf-8") as f:
         return extract_tags_gallerydl(f.read())
 
 def get_tags_from_csv(path):
     tags = []
-    with open(path) as file:
+    with open(path, "r", encoding="utf-8") as file:
         for line in file:
             tags += [line.rstrip().split(",")[0]]
     return tags
@@ -153,7 +156,7 @@ def get_tags_from_csv(path):
 def get_json(file):
     if not os.path.isfile(file):
         return {}
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf-8") as f:
         return json.loads(f.read())
 
 def put_json(j, file, append=True):
@@ -163,8 +166,13 @@ def put_json(j, file, append=True):
             if not k in j:
                 j[k] = jj[k]
     
-    with open(file, "w") as f:
+    with open(file, "w", encoding="utf-8") as f:
         json.dump(j, f)
+
+def to_filename(base, tags, ext):
+    illegal = '<>:"/\\|?*'
+    name = ''.join([c for c in tags_to_prompt(tags) if not c in illegal])
+    return os.path.join(base, name+ext)
 
 class Worker(QObject):
     currentCallback = pyqtSignal(int)
@@ -190,20 +198,22 @@ class Worker(QObject):
         for i in range(total):
             self.currentCallback.emit(i+1)
             img = self.images[i]
-            name = ""
+            out_path = ""
             if self.mode == 0: #single image
                 tags = img.tags
-                while len(", ".join(tags)) > 240:
+                base = len(self.out_folder)
+                while True:
+                    out_path = to_filename(self.out_folder, tags, ext)
+                    if len(out_path) < MX_PATH and len(out_path)-len(self.out_folder) < MX_FILE:
+                        break
                     tags = tags[:-1]
-                name = tags_to_prompt(tags)
-                illegal = '<>:"/\\|?*'
-                name = ''.join([c for c in name if not c in illegal])
             elif self.mode == 1:
                 name = os.path.basename(img.source)
                 name = os.path.splitext(name)[0]
                 img.writePrompt(os.path.join(self.out_folder, name+".txt"))
+                out_path = os.path.join(self.out_folder, name+ext)
 
-            img.writeCrop(os.path.join(self.out_folder, name+ext), self.dim)
+            img.writeCrop(out_path, self.dim)
         print(f"STATUS: done")
         self.currentCallback.emit(0)
 
@@ -230,7 +240,7 @@ class Img:
             self.tags = []
             return False
         metadata = {}
-        with open(self.metadata_path, 'r') as f:
+        with open(self.metadata_path, 'r', encoding="utf-8") as f:
             metadata = json.load(f)
         x,y,s = metadata["offset_x"], metadata["offset_y"], metadata["scale"]
         self.setCrop(x,y,s)
@@ -242,7 +252,7 @@ class Img:
                     "offset_y": self.offset_y,
                     "scale": self.scale,
                     "tags": self.tags}
-        with open(self.metadata_path, 'w') as f:
+        with open(self.metadata_path, 'w', encoding="utf-8") as f:
             json.dump(metadata, f)
         self.changed = False
 
@@ -264,7 +274,7 @@ class Img:
             crop.save(crop_file)
     
     def writePrompt(self, prompt_file):
-        with open(prompt_file, "w") as f:
+        with open(prompt_file, "w", encoding="utf-8") as f:
             f.write(tags_to_prompt(self.tags))
 
     def setCrop(self, x, y, s):
@@ -599,6 +609,7 @@ def start():
     if not os.path.isdir(out_folder):
         print(f"ERROR: output folder '{out_folder}' does not exist!")
         exit(1)
+    out_folder = os.path.abspath(out_folder)
 
     if not meta_folder:
         meta_folder = "metadata"
@@ -607,6 +618,7 @@ def start():
     if not os.path.isdir(meta_folder):
         print(f"ERROR: metadata folder '{out_folder}' does not exist!")
         exit(1)
+    meta_folder = os.path.abspath(meta_folder)
 
     if not tags_file:
         tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
@@ -630,6 +642,7 @@ def start():
         else:
             in_folder = str(QFileDialog.getExistingDirectory(None, "Select Input Folder"))
             put_json({"in_folder": in_folder}, CONFIG)
+    in_folder = os.path.abspath(in_folder)
 
     # load all the images/metadata
     images = get_images(in_folder, meta_folder)
