@@ -552,6 +552,7 @@ ApplicationWindow {
             iconHoverColor: s <= -1 ? "#424242" : "#5d91f0"
             working: backend.ddbStatus > 0
             onPressed: {
+                save()
                 backend.ddbInterrogate()
             }
         }
@@ -803,7 +804,7 @@ ApplicationWindow {
             anchors.top: controls.top
             width: height
             icon: "qrc:/icons/crop.svg"
-            tooltip: "Toggle mode (T)"
+            tooltip: "Switch mode (Alt)"
             color: "#303030"
             iconColor: !root.mode ? "#aaa" : "#606060"
             onPressed: {
@@ -818,7 +819,7 @@ ApplicationWindow {
                 height: controls.height
                 width: height
                 icon: "qrc:/icons/save.svg"
-                tooltip: "Save metadata (F)"
+                tooltip: "Save metadata (Ctrl+S)"
                 color: "#303030"
                 id: saveButton
                 property bool needsSaving: media.changed || cropAlt.changed || backend.changed
@@ -832,7 +833,7 @@ ApplicationWindow {
                 height: controls.height
                 width: height
                 icon: "qrc:/icons/refresh.svg"
-                tooltip: "Revert to last save (R)"
+                tooltip: "Revert to last save (Ctrl+Z)"
                 color: "#303030"
 
                 onPressed: {
@@ -1128,22 +1129,7 @@ ApplicationWindow {
                 currentTagsList.active = ""
                 event.accepted = true
                 break;
-            case Qt.Key_R:
-                backend.reset()
-                event.accepted = true
-                break;
-            case Qt.Key_F:
-                save()
-                event.accepted = true
-                break;
-            case Qt.Key_N:
-                backend.center()
-                event.accepted = true
-                break;
-            case Qt.Key_M:
-                backend.fill()
-                event.accepted = true
-                break;
+            
             case Qt.Key_Left:
                 prev()
                 event.accepted = true
@@ -1176,17 +1162,36 @@ ApplicationWindow {
                 media.right()
                 event.accepted = true
                 break;
-            case Qt.Key_T:
+            case Qt.Key_Alt:
                 changeMode()
                 event.accepted = true
                 break;
-            case Qt.Key_O:
-                save()
-                backend.writeDebugCrop()
-                event.accepted = true
-                break;
-            default:
+            }
 
+            if((event.modifiers & Qt.ControlModifier)) {
+                switch(event.key) {
+                case Qt.Key_Z:
+                    backend.reset()
+                    event.accepted = true
+                    break;
+                case Qt.Key_S:
+                    save()
+                    event.accepted = true
+                    break;
+                case Qt.Key_A:
+                    backend.center()
+                    event.accepted = true
+                    break;
+                case Qt.Key_D:
+                    backend.fill()
+                    event.accepted = true
+                    break;
+                case Qt.Key_E:
+                    save()
+                    backend.writeDebugCrop()
+                    event.accepted = true
+                    break;
+                }
             }
         }
 
