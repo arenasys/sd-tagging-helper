@@ -721,7 +721,10 @@ class Backend(QObject):
             return
         
         im = self._images[self.ddbCurrent]
-        self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+        if im.ready:
+            self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+        else:
+            self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, 0.0, 0.0, 0.0)
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
