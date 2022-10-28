@@ -184,7 +184,7 @@ class DDBWorker(QObject):
         self.webui_folder = webui_folder
         self.deep_folder = os.path.join(self.webui_folder, 'models', 'deepbooru')
 
-        venv_deep_folder = os.path.join(self.webui_folder, 'venv', 'Lib', 'site-packages', 'deepdanbooru')
+        venv_deep_folder = os.path.join(self.webui_folder, 'venv', 'Lib', 'site-packages')
         if os.path.isdir(venv_deep_folder):
             sys.path.insert(0, venv_deep_folder)
 
@@ -334,6 +334,9 @@ class Img:
         crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
         return crop
 
+    def buildPrompt(self):
+        return tags_to_prompt(self.tags)
+
     def writeCrop(self, crop_file, dim):
         crop = self.doCrop(dim)
 
@@ -344,7 +347,7 @@ class Img:
     
     def writePrompt(self, prompt_file):
         with open(prompt_file, "w", encoding="utf-8") as f:
-            f.write(tags_to_prompt(self.tags))
+            f.write(self.buildPrompt())
 
     def setCrop(self, x, y, s):
         if(self.ready and x == self.offset_x and y == self.offset_y and s == self.scale):
@@ -724,6 +727,32 @@ class Backend(QObject):
         if self.ddbThread:
             self.ddbThread.quit()
             self.ddbThread.wait()
+
+    @pyqtSlot()
+    def copy(self):
+        prompt = self._current.buildPrompt()
+        QApplication.clipboard().setText(prompt)
+
+    @pyqtSlot(bool)
+    def paste(self, override):
+        prompt = QApplication.clipboard().text()
+        tags = [t.strip().replace(" ", "_") for t in prompt.split(", ")]
+        
+        real_tags = any([t in self._lookup for t in tags])
+        if not real_tags:
+            return
+
+        if override:
+            self._current.tags = []
+        
+        for t in tags:
+            if not t in self._current.tags:
+                self._current.addTag(t)
+        
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
+
 
     def loadConfig(self):
         j = get_json(CONFIG)

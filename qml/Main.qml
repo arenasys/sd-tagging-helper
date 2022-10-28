@@ -1191,6 +1191,19 @@ ApplicationWindow {
                     backend.writeDebugCrop()
                     event.accepted = true
                     break;
+                case Qt.Key_C:
+                    save()
+                    backend.copy()
+                    event.accepted = true
+                    break;
+                case Qt.Key_V:
+                    backend.paste(false)
+                    event.accepted = true
+                    break;
+                case Qt.Key_B:
+                    backend.paste(true)
+                    event.accepted = true
+                    break;
                 }
             }
         }
