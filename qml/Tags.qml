@@ -24,12 +24,26 @@ Item {
     }
 
     function populate() {
-        listModel.clear()
-        selected = -1
-        listView.contentY = -6
+        var idx = listView.indexAt(listView.contentX,listView.contentY)
+
         for(var i = 0; i < model.length; i++) {
-            listModel.append({"text": model[i]});
+            if(i >= listModel.count) {
+                listModel.append({"text": model[i]})
+                continue
+            }
+            if(listModel.get(i).text == model[i]) {
+                continue
+            }
+            listModel.insert(i, {"text": model[i]})
         }
+
+        if(listModel.count > model.length) {
+            listModel.remove(model.length, listModel.count-model.length)
+        }
+
+        listView.forceLayout()
+
+        listView.positionViewAtIndex(idx, ListView.Contain)
     }
 
     Connections {

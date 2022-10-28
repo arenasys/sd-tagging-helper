@@ -201,13 +201,18 @@ class DDBWorker(QObject):
         self.model = dd.project.load_model_from_project(model_path, compile_model=False)
         self.loadedCallback.emit()
 
-    @pyqtSlot(int, 'QByteArray')
-    def interrogate(self, size, img_bytes):
+    @pyqtSlot(int, 'QString', bool, float, float, float)
+    def interrogate(self, size, file, ready, x, y, s):
         import deepdanbooru as dd
         import tensorflow as tf
         import numpy as np
 
-        image = Image.frombytes("RGB", (size,size), img_bytes)
+        print(size, file, ready, x, y, s)
+
+        img = Img(file, "")
+        if(ready):
+            img.setCrop(x,y,s)
+        image = img.doCrop(size)
 
         width = self.model.input_shape[2]
         height = self.model.input_shape[1]
@@ -402,7 +407,7 @@ class Backend(QObject):
     cropWorkerStart = pyqtSignal()
 
     ddbWorkerUpdated = pyqtSignal()
-    ddbWorkerInterrogate = pyqtSignal(int, 'QByteArray')
+    ddbWorkerInterrogate = pyqtSignal(int, 'QString', bool, float, float, float)
 
     def __init__(self, images, tags, out_folder, webui_folder, dimension, parent=None):
         super().__init__(parent)
@@ -436,6 +441,7 @@ class Backend(QObject):
         self.ddbMode = False
         self.ddbCurrent = -1
         self.ddbLoading = True
+        self.ddbAll = False
         self.ddbActive = self.webui_folder != None
         self.ddbThread = None
         if self.ddbActive:
@@ -701,8 +707,32 @@ class Backend(QObject):
 
         if self.ddbCurrent == -1:
             self.ddbCurrent = self._active
-            self.ddbWorkerInterrogate.emit(self._dim, self._current.doCrop(self._dim).tobytes())
+            im = self._current
+            self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
             self.suggestionsUpdated.emit()
+    
+    def ddbInterrogateNext(self):
+        self.ddbCurrent += 1
+        if self.ddbCurrent >= len(self._images):
+            self.ddbAll = False
+            self._showFrequent = False
+            self.ddbCurrent = -1
+            self.suggestionsUpdated.emit()
+            return
+        
+        im = self._images[self.ddbCurrent]
+        self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+        self.suggestionsUpdated.emit()
+
+    @pyqtSlot()
+    def ddbInterrogateAll(self):
+        if not self.ddbActive:
+            return
+        if self.ddbLoading:
+            return
+        if self.ddbCurrent == -1:
+            self.ddbAll = True
+            self.ddbInterrogateNext()
 
     @pyqtSlot()
     def ddbLoadedCallback(self):
@@ -711,11 +741,15 @@ class Backend(QObject):
 
     @pyqtSlot(list)
     def ddbResultCallback(self, tags):
-        self._showFrequent = False
         img = self._images[self.ddbCurrent]
         img.ddb = tags
-        self.ddbCurrent = -1
-        self.suggestionsUpdated.emit()
+
+        if self.ddbAll:
+            self.ddbInterrogateNext()
+        else:
+            self._showFrequent = False
+            self.ddbCurrent = -1
+            self.suggestionsUpdated.emit()
 
     @pyqtSlot()
     def showFrequent(self):

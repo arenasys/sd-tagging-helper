@@ -555,6 +555,24 @@ ApplicationWindow {
                 save()
                 backend.ddbInterrogate()
             }
+            onContextMenu: {
+                allContextMenu.popup()
+            }
+
+            ContextMenu {
+                id: allContextMenu
+
+                Action {
+                    text: "Interrogate All?"
+                    onTriggered: {
+                        backend.ddbInterrogateAll()
+                    }
+                }
+
+                onClosed: {
+                    keyboardFocus.forceActiveFocus()
+                }
+            }
         }
 
         IconButton {
