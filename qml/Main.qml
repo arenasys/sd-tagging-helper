@@ -455,7 +455,7 @@ ApplicationWindow {
         id: searchTags
         color: "#202020"
         anchors.top: searchBox.bottom
-        anchors.bottom: horizontalDivider.top
+        anchors.bottom: sugDivider.top
         anchors.left: parent.left
         anchors.right: leftDivider.left
         clip: true
@@ -490,16 +490,16 @@ ApplicationWindow {
 
     Rectangle {
         z:10
-        id: horizontalDivider
+        id: sugDivider
         anchors.left: parent.left
         anchors.right: leftDivider.left
         height: 5
         property int minY: 30
-        property int maxY: parent.height-height-30
+        property int maxY: parent.height - 10 - 60
         color: "#404040"
 
         Component.onCompleted: {
-            y = parent.height/2
+            y = parent.height/3
         }
 
         MouseArea {
@@ -507,20 +507,127 @@ ApplicationWindow {
             hoverEnabled: true
             onPositionChanged: {
                 if(pressedButtons) {
-                    horizontalDivider.y = Math.min(horizontalDivider.maxY, Math.max(horizontalDivider.minY, horizontalDivider.y + mouseY))
+                    sugDivider.y = Math.min(sugDivider.maxY, Math.max(sugDivider.minY, sugDivider.y + mouseY))
                 }
             }
         }
 
         onMaxYChanged: {
-            horizontalDivider.y = Math.min(horizontalDivider.maxY, Math.max(horizontalDivider.minY, horizontalDivider.y))
+            sugDivider.y = Math.min(sugDivider.maxY, Math.max(sugDivider.minY, sugDivider.y))
+        }
+    }
+
+    Rectangle {
+        id: sugLabel
+        color: "#303030"
+        anchors.top: sugDivider.bottom
+        height: 30
+        anchors.left: parent.left
+        anchors.right: leftDivider.left
+        Text {
+            text: "Suggestions"
+            font.pixelSize: 15
+            leftPadding: 8
+            rightPadding: 16
+            font.bold: false
+            color: "white"
+            verticalAlignment: Text.AlignVCenter
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+        }
+
+        IconButton {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: parent.height
+            width: height
+            icon: "qrc:/icons/brain.svg"
+            tooltip: "Interrogate via DeepDanbooru"
+            color: "#303030"
+            iconColor: "#516a98"
+            iconHoverColor: "#5d91f0"
+            onPressed: {
+                
+            }
+        }
+    }
+
+    Rectangle {
+        id: sugTags
+        color: "#202020"
+        anchors.top: sugLabel.bottom
+        anchors.bottom: favDivider.top
+        anchors.left: parent.left
+        anchors.right: leftDivider.left
+        clip: true
+
+        Tags {
+            id: sugTagsList
+            model: backend.frequent
+            anchors.fill: parent
+            moveEnabled: false
+
+            function getOverlay(tag, index) {
+                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
+            }
+
+            onPressed: {
+                currentTagsList.deselect()
+                favTagsList.deselect()
+            }
+
+            onDoublePressed: {
+                if(!backend.tags.includes(tag)) {
+                    backend.addTag(tag)
+                    currentTagsList.add(tag)
+                }
+            }
+
+            onModelChanged: {
+                populate()
+            }
+        }
+    }
+
+
+    Rectangle {
+        z:10
+        id: favDivider
+        anchors.left: parent.left
+        anchors.right: leftDivider.left
+        height: 5
+        property int minY: sugDivider.y + 5
+        property int maxY: parent.height-height-30
+        color: "#404040"
+
+        Component.onCompleted: {
+            y = 2*parent.height/3
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onPositionChanged: {
+                if(pressedButtons) {
+                    favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y + mouseY))
+                }
+            }
+        }
+
+        onMinYChanged: {
+            favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y))
+        }
+
+        onMaxYChanged: {
+            favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y))
         }
     }
 
     Rectangle {
         id: favLabel
         color: "#303030"
-        anchors.top: horizontalDivider.bottom
+        anchors.top: favDivider.bottom
         height: 30
         anchors.left: parent.left
         anchors.right: leftDivider.left

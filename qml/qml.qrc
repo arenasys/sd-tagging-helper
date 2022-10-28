@@ -36,5 +36,6 @@
         <file>icons/sort.svg</file>
         <file>icons/eye.svg</file>
         <file>icons/crop.svg</file>
+        <file>icons/brain.svg</file>
     </qresource>
 </RCC>

@@ -15,6 +15,7 @@ import qml_rc
 
 CONFIG = "config.json"
 EXT = [".png", ".jpg", ".jpeg", ".webp"]
+MX_TAGS = 30
 
 def get_metadata(image_file):
     tags = []
@@ -165,7 +166,6 @@ def put_json(j, file, append=True):
     with open(file, "w") as f:
         json.dump(j, f)
 
-
 class Worker(QObject):
     currentCallback = pyqtSignal(int)
 
@@ -314,6 +314,7 @@ class Backend(QObject):
     searchUpdated = pyqtSignal()
     workerUpdated = pyqtSignal()
     favUpdated = pyqtSignal()
+    freqUpdated = pyqtSignal()
 
     workerSetup = pyqtSignal(int,int)
     workerStart = pyqtSignal()
@@ -323,14 +324,18 @@ class Backend(QObject):
         self._images = images
         self._tags = tags
         self._lookup = set(tags)
-        self._results = tags
+        self._results = []
+        
         self._active = -1
         self.setActive(0)
         self._current = self._images[self._active]
         self._dim = dimension
 
+        self.search("")
+
         self._fav = []
-        self.loadFavourites()
+        self._freq = {}
+        self.loadConfig()
 
         self.worker = Worker(self._images, out_folder, self._dim)
         self.workerCurrent = 0
@@ -392,10 +397,15 @@ class Backend(QObject):
         return self.workerCurrent/len(self._images)
     @pyqtProperty('QString', notify=updated)
     def title(self):
-        return f"Tagger {self._active+1} of {len(self._images)}"
+        return f"Tagging {self._active+1} of {len(self._images)}"
     @pyqtProperty(list, notify=favUpdated)
     def favourites(self):
         return self._fav
+    @pyqtProperty(list, notify=freqUpdated)
+    def frequent(self):
+        f = [(k, self._freq[k]) for k in self._freq]
+        f.sort(key=lambda a:a[1], reverse=True)
+        return [t[0] for t in f]
 
     @pyqtSlot('QString', result=bool)
     def lookup(self, tag):
@@ -408,6 +418,17 @@ class Backend(QObject):
         self._current.addTag(tag)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
+
+        last = ', '.join(self.frequent)
+
+        if not tag in self._freq:
+            self._freq[tag] = 0
+        self._freq[tag] += 1
+        self.saveConfig()
+
+        current = ', '.join(self.frequent)
+        if(last != current):
+            self.freqUpdated.emit()
 
     @pyqtSlot(int)
     def deleteTag(self, idx):
@@ -462,8 +483,18 @@ class Backend(QObject):
     @pyqtSlot('QString')
     def search(self, s):
         if not s:
+            if len(self._tags) > MX_TAGS:
+                self._results = self._tags[0:MX_TAGS]
             self._results = self._tags
-        self._results = [t for t in self._tags if s in t]
+        s = s.replace(" ", "_")
+        results = []
+        for t in self._tags:
+            if s in t:
+                results += [t]
+            if len(results) > MX_TAGS:
+                break
+
+        self._results = results
         self.searchUpdated.emit()
 
     @pyqtSlot(int)
@@ -508,7 +539,7 @@ class Backend(QObject):
     def addFavourite(self, tag):
         self._fav += [tag]
         self.favUpdated.emit()
-        self.saveFavourites()
+        self.saveConfig()
 
     @pyqtSlot('QString')
     def toggleFavourite(self, tag):
@@ -517,27 +548,29 @@ class Backend(QObject):
         else:
             self._fav += [tag]
         self.favUpdated.emit()
-        self.saveFavourites()
+        self.saveConfig()
 
     @pyqtSlot(int)
     def deleteFavourite(self, idx):
         del self._fav[idx]
         self.favUpdated.emit()
-        self.saveFavourites()
+        self.saveConfig()
 
     @pyqtSlot(int, int)
     def moveFavourite(self, from_idx, to_idx):
         self._fav.insert(to_idx, self._fav.pop(from_idx))
         self.favUpdated.emit()
-        self.saveFavourites()
+        self.saveConfig()
     
-    def loadFavourites(self):
+    def loadConfig(self):
         j = get_json(CONFIG)
         if 'fav' in j:
             self._fav = j["fav"]
+        if 'freq' in j:
+            self._freq = j["freq"]
 
-    def saveFavourites(self):
-        put_json({"fav": self._fav}, CONFIG)
+    def saveConfig(self):
+        put_json({"fav": self._fav, "freq": self._freq}, CONFIG)
 
 def start():
     parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
