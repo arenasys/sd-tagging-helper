@@ -207,8 +207,6 @@ class DDBWorker(QObject):
         import tensorflow as tf
         import numpy as np
 
-        print(size, file, ready, x, y, s)
-
         img = Img(file, "")
         if(ready):
             img.setCrop(x,y,s)
@@ -459,6 +457,10 @@ class Backend(QObject):
         self.ddbThread.started.connect(self.ddbWorker.load)
         self.ddbThread.start()
 
+    @pyqtProperty(int, constant=True)
+    def total(self):
+        return len(self._images)
+
     @pyqtProperty(int, notify=updated)
     def active(self):
         return self._active
@@ -527,7 +529,6 @@ class Backend(QObject):
             return [t[0] for t in f]
         else:
             return self._current.ddb
-        
     @pyqtProperty(int, notify=suggestionsUpdated)
     def ddbStatus(self):
         if not self.ddbActive:
@@ -535,12 +536,14 @@ class Backend(QObject):
         if self.ddbLoading:
             return -1
         if self.ddbCurrent == -1:
-            return 0
-        return 1
-
+            return 0 #idle
+        if self.ddbAll:
+            return 2+self.ddbCurrent #working on all 
+        return 1 #working 
     @pyqtProperty(bool, notify=suggestionsUpdated)
     def showingFrequent(self):
         return self._showFrequent
+
 
     @pyqtSlot('QString', result=bool)
     def lookup(self, tag):

@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtGraphicalEffects 1.12
 
 ApplicationWindow {
     visible: true
@@ -532,10 +533,14 @@ ApplicationWindow {
             font.bold: false
             color: "white"
             verticalAlignment: Text.AlignVCenter
+            width: Math.min(parent.width, implicitWidth)
+            elide: Text.ElideRight
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
         }
+
+        
 
         IconButton {
             anchors.right: parent.right
@@ -546,11 +551,25 @@ ApplicationWindow {
             property int s: backend.ddbStatus
             id: ddbButton
 
-            tooltip: s == -2 ? "Load DeepDanbooru?" : s == -1 ? "Loading..." : "Interrogate via DeepDanbooru"
-            color: "#303030"
-            iconColor: s <= -1 ? "#424242" : "#516a98"
+            tooltip: {
+                if(s == -2)
+                    return "Load DeepDanbooru?"
+                if(s == -1)
+                    return "Loading..."
+                if(s == 0)
+                    return "Interrogate via DeepDanbooru"
+                if(s == 1)
+                    return "Interrogating..."
+                return "Interrogating " + String(s-1) + " of " + String(backend.total)
+                
+            }
+            color: "transparent"
+            iconColor: s <= -1 ? "#424242" : (s > 0 ?  "#83aaf2" : "#516a98")
             iconHoverColor: s <= -1 ? "#424242" : "#5d91f0"
             working: backend.ddbStatus > 0
+            glowing: backend.ddbStatus > 0
+            glowColor: "#99437be0"
+            glowStrength: 10
             onPressed: {
                 save()
                 backend.ddbInterrogate()
@@ -676,6 +695,8 @@ ApplicationWindow {
             font.bold: false
             color: "white"
             verticalAlignment: Text.AlignVCenter
+            width: Math.min(parent.width, implicitWidth)
+            elide: Text.ElideRight
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
@@ -763,31 +784,31 @@ ApplicationWindow {
             anchors.bottom: parent.bottom
         }
 
-        IconButton {
+        Row {
+            width: Math.min(parent.width, implicitWidth)
             anchors.right: parent.right
-            anchors.top: parent.top
-            height: parent.height
-            width: height
-            icon: "qrc:/icons/trash.svg"
-            tooltip: "Remove unknown"
-            color: "#303030"
-            id: cleanButton
-            onPressed: {
-                backend.cleanTags()
+            IconButton {
+                height: currentLabel.height
+                width: height
+                icon: "qrc:/icons/trash.svg"
+                tooltip: "Remove unknown"
+                color: "#303030"
+                id: cleanButton
+                onPressed: {
+                    backend.cleanTags()
+                }
             }
-        }
 
-        IconButton {
-            anchors.right: cleanButton.left
-            anchors.top: parent.top
-            height: parent.height
-            width: height
-            icon: "qrc:/icons/sort.svg"
-            tooltip: "Sort by popularity"
-            color: "#303030"
-            id: sortButton
-            onPressed: {
-                backend.sortTags()
+            IconButton {
+                height: currentLabel.height
+                width: height
+                icon: "qrc:/icons/sort.svg"
+                tooltip: "Sort by popularity"
+                color: "#303030"
+                id: sortButton
+                onPressed: {
+                    backend.sortTags()
+                }
             }
         }
     }

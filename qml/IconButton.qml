@@ -13,6 +13,11 @@ Rectangle {
     property var inset: 10
     property var tooltip: ""
     property var hovered: mouse.containsMouse
+    
+    property bool glowing: false
+    property var glowColor: "white"
+    property var glowStrength: 3
+    
 
     signal pressed();
     signal contextMenu();
@@ -47,7 +52,7 @@ Rectangle {
 
     InfoToolTip {
         id: infoToolTip
-        visible: !working && !disabled && tooltip != "" && mouse.containsMouse
+        visible: !disabled && tooltip != "" && mouse.containsMouse
         delay: 100
         text: tooltip
     }
@@ -59,18 +64,6 @@ Rectangle {
         height: width
         sourceSize: Qt.size(parent.width, parent.height)
         anchors.centerIn: parent
-        RotationAnimator {
-            id: imgAnimation
-            target: img;
-            loops: Animation.Infinite
-            from: 0;
-            to: 360;
-            duration: 1000
-
-            onStopped: {
-                target.rotation = 0
-            }
-        }
     }
 
     ColorOverlay {
@@ -78,27 +71,35 @@ Rectangle {
         anchors.fill: img
         source: img
         color: disabled ? Qt.darker(iconColor) : (mouse.containsMouse ? iconHoverColor : iconColor)
-        RotationAnimator {
-            id: colorAnimation
-            target: color;
-            loops: Animation.Infinite
-            from: 0;
-            to: 360;
-            duration: 1000
+    }
 
+    Glow {
+        id: glow
+        visible: glowing
+        anchors.fill: img
+        source: color
+        radius: Math.abs(glowStrength - r)
+        samples: 17
+        color: glowColor
+        property var r: 0
+
+        RotationAnimation on r {
+            id: glowAnimation
+            duration: 1000
+            loops: Animation.Infinite
+            from: 0
+            to: 2*glowStrength
             onStopped: {
-                target.rotation = 0
+                glow.r = 0
             }
         }
     }
 
     function sync() {
         if(working) {
-            imgAnimation.restart()
-            colorAnimation.restart()
+            glowAnimation.restart()
         } else {
-            imgAnimation.stop()
-            colorAnimation.stop()
+            glowAnimation.stop()
         }
     }
 
