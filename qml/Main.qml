@@ -495,7 +495,7 @@ ApplicationWindow {
         anchors.right: leftDivider.left
         height: 5
         property int minY: 30
-        property int maxY: parent.height - 10 - 60
+        property int maxY: parent.height - 10
         color: "#404040"
 
         Component.onCompleted: {
@@ -598,7 +598,7 @@ ApplicationWindow {
         anchors.right: leftDivider.left
         height: 5
         property int minY: sugDivider.y + 5
-        property int maxY: parent.height-height-30
+        property int maxY: parent.height-5
         color: "#404040"
 
         Component.onCompleted: {
