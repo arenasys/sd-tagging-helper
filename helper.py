@@ -184,6 +184,10 @@ class DDBWorker(QObject):
         self.webui_folder = webui_folder
         self.deep_folder = os.path.join(self.webui_folder, 'models', 'deepbooru')
 
+        venv_deep_folder = os.path.join(self.webui_folder, 'venv', 'Lib', 'site-packages', 'deepdanbooru')
+        if os.path.isdir(venv_deep_folder):
+            sys.path.insert(0, venv_deep_folder)
+
         sys.path.insert(0, self.webui_folder)
         sys.path.insert(0, self.deep_folder)
 
