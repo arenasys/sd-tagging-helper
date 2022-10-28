@@ -544,6 +544,7 @@ ApplicationWindow {
             width: height
             icon: "qrc:/icons/brain.svg"
             property int s: backend.ddbStatus
+            id: ddbButton
 
             tooltip: s == -2 ? "Load DeepDanbooru?" : s == -1 ? "Loading..." : "Interrogate via DeepDanbooru"
             color: "#303030"
@@ -552,6 +553,20 @@ ApplicationWindow {
             working: backend.ddbStatus > 0
             onPressed: {
                 backend.ddbInterrogate()
+            }
+        }
+
+        IconButton {
+            visible: !backend.showingFrequent
+            anchors.right: ddbButton.left
+            anchors.top: parent.top
+            height: parent.height
+            width: height
+            icon: "qrc:/icons/bookshelf.svg"
+            tooltip: "Show frequently used"
+            color: "#303030"
+            onPressed: {
+                backend.showFrequent()
             }
         }
     }
@@ -567,7 +582,7 @@ ApplicationWindow {
 
         Tags {
             id: sugTagsList
-            model: backend.frequent
+            model: backend.suggestions
             anchors.fill: parent
             moveEnabled: false
 

@@ -388,7 +388,7 @@ class Backend(QObject):
     imageUpdated = pyqtSignal()
     searchUpdated = pyqtSignal()
     favUpdated = pyqtSignal()
-    freqUpdated = pyqtSignal()
+    suggestionsUpdated = pyqtSignal()
 
     cropWorkerUpdated = pyqtSignal()
     cropWorkerSetup = pyqtSignal(int,int)
@@ -416,6 +416,7 @@ class Backend(QObject):
         self._freq = {}
         self.loadConfig()
         self.saveConfig()
+        self._showFrequent = True
 
         self.cropWorker = CropWorker(self._images, out_folder, self._dim)
         self.cropWorkerCurrent = 0
@@ -425,6 +426,7 @@ class Backend(QObject):
         self.cropWorkerStart.connect(self.cropWorker.start)
         self.cropWorker.moveToThread(self.cropThread)
 
+        self.ddbMode = False
         self.ddbCurrent = -1
         self.ddbLoading = True
         self.ddbActive = self.webui_folder != None
@@ -463,7 +465,7 @@ class Backend(QObject):
         self.changedUpdated.emit()
         self.imageUpdated.emit()
         self.tagsUpdated.emit()
-        self.freqUpdated.emit()
+        self.suggestionsUpdated.emit()
         self.updated.emit()
 
     @pyqtProperty('QString', notify=updated)
@@ -501,13 +503,16 @@ class Backend(QObject):
     @pyqtProperty(list, notify=favUpdated)
     def favourites(self):
         return self._fav
-    @pyqtProperty(list, notify=freqUpdated)
-    def frequent(self):
-        return self._current.ddb
-        f = [(k, self._freq[k]) for k in self._freq]
-        f.sort(key=lambda a:a[1], reverse=True)
-        return [t[0] for t in f]
-    @pyqtProperty(int, notify=freqUpdated)
+    @pyqtProperty(list, notify=suggestionsUpdated)
+    def suggestions(self):
+        if self._showFrequent:
+            f = [(k, self._freq[k]) for k in self._freq]
+            f.sort(key=lambda a:a[1], reverse=True)
+            return [t[0] for t in f]
+        else:
+            return self._current.ddb
+        
+    @pyqtProperty(int, notify=suggestionsUpdated)
     def ddbStatus(self):
         if not self.ddbActive:
             return -2
@@ -516,6 +521,10 @@ class Backend(QObject):
         if self.ddbCurrent == -1:
             return 0
         return 1
+
+    @pyqtProperty(bool, notify=suggestionsUpdated)
+    def showingFrequent(self):
+        return self._showFrequent
 
     @pyqtSlot('QString', result=bool)
     def lookup(self, tag):
@@ -529,16 +538,12 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
-        last = ', '.join(self.frequent)
-
         if not tag in self._freq:
             self._freq[tag] = 0
         self._freq[tag] += 1
         self.saveConfig()
 
-        current = ', '.join(self.frequent)
-        if(last != current):
-            self.freqUpdated.emit()
+        self.suggestionsUpdated.emit()
 
     @pyqtSlot(int)
     def deleteTag(self, idx):
@@ -680,7 +685,7 @@ class Backend(QObject):
                 return
             self.ddbActive = True
             self.ddbInit()
-            self.freqUpdated.emit()
+            self.suggestionsUpdated.emit()
             self.saveConfig()
             return
         
@@ -690,32 +695,31 @@ class Backend(QObject):
         if self.ddbCurrent == -1:
             self.ddbCurrent = self._active
             self.ddbWorkerInterrogate.emit(self._dim, self._current.doCrop(self._dim).tobytes())
-            self.freqUpdated.emit()
+            self.suggestionsUpdated.emit()
 
     @pyqtSlot()
     def ddbLoadedCallback(self):
         self.ddbLoading = False
-        self.freqUpdated.emit()
+        self.suggestionsUpdated.emit()
 
     @pyqtSlot(list)
     def ddbResultCallback(self, tags):
+        self._showFrequent = False
         img = self._images[self.ddbCurrent]
         img.ddb = tags
         self.ddbCurrent = -1
-        self.freqUpdated.emit()
+        self.suggestionsUpdated.emit()
+
+    @pyqtSlot()
+    def showFrequent(self):
+        self._showFrequent = True
+        self.suggestionsUpdated.emit()
 
     @pyqtSlot()
     def closing(self):
         if self.ddbThread:
             self.ddbThread.quit()
             self.ddbThread.wait()
-
-    @pyqtSlot(list)
-    def ddbResultCallback(self, tags):
-        img = self._images[self.ddbCurrent]
-        img.ddb = tags
-        self.ddbCurrent = -1
-        self.freqUpdated.emit()
 
     def loadConfig(self):
         j = get_json(CONFIG)
