@@ -7,23 +7,70 @@ ApplicationWindow {
     height: 600
     title: backend.title
     id: root
+    property var mode: true
+
+    onWidthChanged: {
+        sync()
+    }
+    
+    onHeightChanged: {
+        sync()
+    }
 
     function save() {
-        backend.applyCrop((media.x + media.fx)-crop.x, (media.y + media.fy)-crop.y, media.fw, media.fh, crop.width, crop.height)
+        if(root.mode) {
+            backend.applyCrop((media.x + media.fx)-cropAlt.x, (media.y + media.fy)-cropAlt.y, media.fw, media.fh, cropAlt.width, cropAlt.height)
+            cropAlt.changed = false
+        } else {
+            backend.applyCrop((media.x + media.fx)-crop.x, (media.y + media.fy)-crop.y, media.fw, media.fh, crop.width, crop.height)
+            media.changed = false
+        }
         backend.saveMetadata()
-        media.changed = false
+        
     }
 
     function next() {
+        if(saveButton.needsSaving) {
+            save()
+        }
+
         backend.active += 1
     }
 
     function prev() {
+        if(saveButton.needsSaving) {
+            save()
+        }
+
         backend.active -= 1
     }
 
     function search(text) {
         backend.search(text)
+    }
+
+    function sync() {
+        if(root.mode) {
+            cropAlt.sync()
+            media.sync()
+        } else {
+            media.sync()
+        }
+    }
+
+    function changeMode() {
+        if(media.changed || cropAlt.changed) {
+            save()
+        }
+        root.mode = !root.mode
+        media.sync()
+        cropAlt.sync()
+    }
+
+    Rectangle {
+        id: bg
+        color: "#000000"
+        anchors.fill: parent
     }
 
     Rectangle {
@@ -33,18 +80,20 @@ ApplicationWindow {
         anchors.bottom: parent.bottom
         anchors.left: leftDivider.right
         anchors.right: rightDivider.left
+        anchors.margins: 4
 
         onWidthChanged: {
-            media.reset()
+            sync()
         }
         
         onHeightChanged: {
-            media.reset()
+            sync()
         }
     }
     
     Media {
         id: media
+        locked: root.mode
         source: backend.source
         anchors.fill: crop
         default_ox: backend.offset_x
@@ -52,47 +101,338 @@ ApplicationWindow {
         default_s: backend.scale
 
         Component.onCompleted: {
-            reset()
+            media.sync()
         }
     }
 
     Rectangle {
-        id: crop
+        id: cropOutline
+        visible: crop.visible
         color: "#00000000"
         border.width: 4
-        border.color: media.changed ? "#aaff0000" : "#aa00ff00"
+        border.color: saveButton.needsSaving ? "#aaff0000": "#aa00ff00"
+        x: crop.x-4
+        y: crop.y-4
+        width: crop.width + 8
+        height: crop.height + 8
+    }
+
+    Rectangle {
+        id: crop
+        visible: !root.mode
+        color: "#00000000"
         anchors.centerIn: view
         width: Math.min(view.width, view.height)
         height: width
     }
 
     Rectangle {
+        id: cropAltOutline
+        visible: cropAlt.visible
+        color: "#00000000"
+        border.width: 4
+        border.color: saveButton.needsSaving ? "#aaff0000": "#aa00ff00"
+        x: Math.ceil(cropAlt.x-4)
+        y: Math.ceil(cropAlt.y-4)
+        width: Math.floor(cropAlt.width + 8)
+        height: Math.floor(cropAlt.height + 8)
+    }
+
+    DashedRectangle {
+        id: cropAltOutlineDashed
+        visible: cropAlt.visible
+        x: Math.ceil(cropAlt.x)
+        y: Math.ceil(cropAlt.y)
+        width: Math.floor(cropAlt.width) + 1
+        height: Math.floor(cropAlt.height) + 1
+
+        Handle {
+            id: handleTL
+            anchors.right: parent.left
+            anchors.bottom: parent.top
+        }
+
+        Handle {
+            id: handleTR
+            anchors.left: parent.right
+            anchors.bottom: parent.top
+        }
+
+        Handle {
+            id: handleBR
+            anchors.left: parent.right
+            anchors.top: parent.bottom
+        }
+
+        Handle {
+            id: handleBL
+            anchors.right: parent.left
+            anchors.top: parent.bottom
+        }
+
+        Handle {
+            id: handleL
+            anchors.right: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Handle {
+            id: handleR
+            anchors.left: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Handle {
+            id: handleT
+            anchors.bottom: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+
+        Handle {
+            id: handleB
+            anchors.top: parent.bottom
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+    }
+
+    Rectangle {
+        id: cropAlt
+        visible: root.mode
+        color: "#00000000"
+        height: width
+
+        property bool changed: true
+
+        property var relX: 0
+        property var relY: 0
+        property var relW: 1.0
+        property var max: Math.min(media.fw, media.fh)
+
+        x: media.x+media.fx + relX*width
+        y: media.y+media.fy + relY*width
+        width: relW*media.width
+
+        function sync() {
+            relW = 1/backend.scale
+            relX = -backend.offset_x
+            relY = -backend.offset_y
+            changed = false
+        }
+    }
+
+    MouseArea {
+        anchors.fill: view
+        enabled: root.mode
+        property var target: cropAlt
+        property var startX: 0
+        property var startY: 0
+        property var posX: 0
+        property var posY: 0
+        property var posW: 0
+        property var posH: 0
+        property var dragging: false
+        property var adjusting: false
+
+        property var lockL: false
+        property var lockR: false
+        property var lockT: false
+        property var lockB: false
+
+        onPressed: {
+            lockL = false
+            lockR = false
+            lockT = false
+            lockB = false
+
+            posX = target.x
+            posY = target.y
+            posW = target.width
+            posH = target.height
+            startX = mouseX
+            startY = mouseY
+            var g = mapToGlobal(startX, startY)
+
+            if(handleTL.contains(g)) {
+                adjusting = true
+                lockR = true
+                lockB = true
+                return
+            }
+            if(handleBR.contains(g)) {
+                adjusting = true
+                lockL = true
+                lockT = true
+                return
+            }
+            if(handleTR.contains(g)) {
+                adjusting = true
+                lockL = true
+                lockB = true
+                return
+            }
+            if(handleBL.contains(g)) {
+                adjusting = true
+                lockR = true
+                lockT = true
+                return
+            }
+            if(handleL.contains(g)) {
+                lockT = true
+            }
+            if(handleR.contains(g)) {
+                lockT = true
+            }
+            if(handleT.contains(g)) {
+                lockL = true
+            }
+            if(handleB.contains(g)) {
+                lockL = true
+            } 
+
+            dragging = true
+        }
+
+        onReleased: {
+            dragging = false
+            adjusting = false
+        }
+
+        function bound(x, y, w, h) {
+            w = Math.max(Math.min(w, target.max), 32)
+
+            x = Math.max(media.fx+crop.x, x)
+            y = Math.max(media.fy+crop.y, y)
+            x = Math.min(media.fx+crop.x+media.fw, x+w)-w
+            y = Math.min(media.fy+crop.y+media.fh, y+h)-h
+
+            var relW = w/media.width
+            var relX = (x - media.x - media.fx)/w
+            var relY = (y - media.y - media.fy)/w
+
+            target.relW = relW
+            target.relX = relX
+            target.relY = relY
+
+            target.changed = true
+        }
+
+        onPositionChanged: {
+            if(dragging || adjusting) {
+                var dx = (mouseX - startX)
+                var dy = (mouseY - startY)
+                var x = posX + dx
+                var y = posY + dy
+                var w = posW
+                var h = posH
+                
+                if(adjusting) {
+                    var d = (dx + dy)/2
+                    var ddx = d
+                    var ddy = d
+
+                    if(lockT && lockR) {
+                        d = (dx - dy)/2
+                        ddx = d
+                        ddy = -d
+                    }
+
+                    if(lockB && lockL) {
+                        d = (-dx + dy)/2
+                        ddx = -d
+                        ddy = d
+                    }
+
+                    if(lockR) {
+                        x = posX + ddx
+                        w = posW - ddx
+                    }
+                    if(lockL) {
+                        x = posX
+                        w = posW + ddx
+                    }
+                    if(lockB) {
+                        y = posY + ddy
+                        h = posH - ddy
+                    }
+                    if(lockT) {
+                        y = posY
+                        h = posH + ddy
+                    }
+                }
+
+                if(dragging) {
+                    if(lockL || lockR) {
+                        x = posX
+                    }
+                    if(lockT || lockB) {
+                        y = posY
+                    }
+                }
+
+                if(w > 32) {
+                    bound(x, y, w, h)
+                    bound(target.x, target.y, target.width, target.height)
+                }
+            }
+        }
+
+        onWheel: {
+            if(wheel.angleDelta.y > 0) {
+                wheel.accepted = true
+
+                if(target.relW > 0.2) {
+                    var o = target.width * 0.05
+                    bound(target.x+o/2, target.y+o/2, target.width-o, target.height-o)
+                    bound(target.x, target.y, target.width, target.height)
+                }
+
+            } else {
+                wheel.accepted = true
+
+                if(target.relW < 1.0) {
+                    var o = target.width * 0.05
+                    bound(target.x-o/2, target.y-o/2, target.width + o, target.height + o)
+                    bound(target.x, target.y, target.width, target.height)
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        visible: !root.mode
         color: "#aa000000"
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: leftDivider.right
         anchors.right: crop.left
+        anchors.rightMargin: 4
     }
     Rectangle {
+        visible: !root.mode
         color: "#aa000000"
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: crop.right
         anchors.right: rightDivider.left
+        anchors.leftMargin: 4
     }
     Rectangle {
+        visible: !root.mode
         color: "#aa000000"
         anchors.top: parent.top
         anchors.bottom: crop.top
         anchors.left: leftDivider.right
         anchors.right: rightDivider.left
+        anchors.bottomMargin: 4
     }
     Rectangle {
+        visible: !root.mode
         color: "#aa000000"
         anchors.top: crop.bottom
         anchors.bottom: parent.bottom
         anchors.left: leftDivider.right
         anchors.right: rightDivider.left
+        anchors.topMargin: 4
     }
 
     Search {
@@ -115,7 +455,7 @@ ApplicationWindow {
         id: searchTags
         color: "#202020"
         anchors.top: searchBox.bottom
-        anchors.bottom: parent.bottom
+        anchors.bottom: horizontalDivider.top
         anchors.left: parent.left
         anchors.right: leftDivider.left
         clip: true
@@ -124,16 +464,22 @@ ApplicationWindow {
             id: searchTagsList
             model: backend.results
             anchors.fill: parent
-
-            highlight: "green"
+            moveEnabled: false
 
             function getOverlay(tag, index) {
-                return backend.tags.includes(tag) ? "#66000000" : "#00000000"
-            } 
+                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
+            }
+
+            onPressed: {
+                currentTagsList.deselect()
+                favTagsList.deselect()
+            }
 
             onDoublePressed: {
-                backend.addTag(tag)
-                currentTagsList.add(tag)
+                if(!backend.tags.includes(tag)) {
+                    backend.addTag(tag)
+                    currentTagsList.add(tag)
+                }
             }
 
             onModelChanged: {
@@ -141,6 +487,117 @@ ApplicationWindow {
             }
         }
     }
+
+    Rectangle {
+        z:10
+        id: horizontalDivider
+        anchors.left: parent.left
+        anchors.right: leftDivider.left
+        height: 5
+        property int minY: 30
+        property int maxY: parent.height-height-30
+        color: "#404040"
+
+        Component.onCompleted: {
+            y = parent.height/2
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onPositionChanged: {
+                if(pressedButtons) {
+                    horizontalDivider.y = Math.min(horizontalDivider.maxY, Math.max(horizontalDivider.minY, horizontalDivider.y + mouseY))
+                }
+            }
+        }
+
+        onMaxYChanged: {
+            horizontalDivider.y = Math.min(horizontalDivider.maxY, Math.max(horizontalDivider.minY, horizontalDivider.y))
+        }
+    }
+
+    Rectangle {
+        id: favLabel
+        color: "#303030"
+        anchors.top: horizontalDivider.bottom
+        height: 30
+        anchors.left: parent.left
+        anchors.right: leftDivider.left
+        Text {
+            text: "Favourites"
+            font.pixelSize: 15
+            leftPadding: 8
+            rightPadding: 16
+            font.bold: false
+            color: "white"
+            verticalAlignment: Text.AlignVCenter
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+        }
+
+        IconButton {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: parent.height
+            width: height
+            icon: "qrc:/icons/plus.svg"
+            tooltip: "Add all"
+            color: "#303030"
+            onPressed: {
+                for(var i = 0; i < backend.favourites.length; i++) {
+                    var tag = backend.favourites[i]
+                    if(!backend.tags.includes(tag)) {
+                        backend.addTag(tag)
+                        currentTagsList.add(tag)
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: favTags
+        color: "#202020"
+        anchors.top: favLabel.bottom
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: leftDivider.left
+        clip: true
+
+        Tags {
+            id: favTagsList
+            model: backend.favourites
+            anchors.fill: parent
+
+            function getOverlay(tag, index) {
+                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
+            } 
+
+            onPressed: {
+                searchTagsList.deselect()
+                currentTagsList.deselect()
+            }
+
+            onDoublePressed: {
+                if(!backend.tags.includes(tag)) {
+                    backend.addTag(tag)
+                    currentTagsList.add(tag)
+                }
+            }
+       
+            onMoved: {
+                backend.moveFavourite(from, to)
+            }
+
+            onModelChanged: {
+                populate()
+            }
+        }
+    }
+
+
 
     Rectangle {
         id: currentLabel
@@ -154,12 +611,40 @@ ApplicationWindow {
             font.pixelSize: 15
             leftPadding: 8
             rightPadding: 16
-            font.bold: true
+            font.bold: false
             color: "white"
             verticalAlignment: Text.AlignVCenter
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
+        }
+
+        IconButton {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: parent.height
+            width: height
+            icon: "qrc:/icons/trash.svg"
+            tooltip: "Remove unknown"
+            color: "#303030"
+            id: cleanButton
+            onPressed: {
+                backend.cleanTags()
+            }
+        }
+
+        IconButton {
+            anchors.right: cleanButton.left
+            anchors.top: parent.top
+            height: parent.height
+            width: height
+            icon: "qrc:/icons/sort.svg"
+            tooltip: "Sort by popularity"
+            color: "#303030"
+            id: sortButton
+            onPressed: {
+                backend.sortTags()
+            }
         }
     }
 
@@ -172,16 +657,32 @@ ApplicationWindow {
         anchors.right: parent.right
 
         IconButton {
+            id: packageButton
             height: controls.height
             anchors.left: controls.left
             anchors.top: controls.top
             width: height
             icon: "qrc:/icons/package.svg"
-            tooltip: "package outputs"
+            tooltip: "Package outputs"
             color: "#303030"
             working: packageWindow.visible
             onPressed: {
                 packageWindow.open()
+            }
+        }
+
+        IconButton {
+            height: controls.height
+            anchors.left: packageButton.right
+            anchors.leftMargin: 0
+            anchors.top: controls.top
+            width: height
+            icon: "qrc:/icons/crop.svg"
+            tooltip: "Toggle mode (T)"
+            color: "#303030"
+            iconColor: !root.mode ? "#aaa" : "#606060"
+            onPressed: {
+                changeMode()
             }
         }
 
@@ -192,9 +693,11 @@ ApplicationWindow {
                 height: controls.height
                 width: height
                 icon: "qrc:/icons/save.svg"
-                tooltip: "save metadata (f)"
+                tooltip: "Save metadata (F)"
                 color: "#303030"
-                iconColor: media.changed || backend.changed ? "#ba0000" : "green"
+                id: saveButton
+                property bool needsSaving: media.changed || cropAlt.changed || backend.changed
+                iconColor: needsSaving ? "#ba0000" : "green"
                 onPressed: {
                     save()
                 }
@@ -204,10 +707,31 @@ ApplicationWindow {
                 height: controls.height
                 width: height
                 icon: "qrc:/icons/refresh.svg"
-                tooltip: "reset image position (r)"
+                tooltip: "Revert to last save (R)"
                 color: "#303030"
+
                 onPressed: {
-                    media.reset()
+                    backend.reset()
+                }
+
+                onContextMenu: {
+                    resetContextMenu.popup()
+                }
+
+                ContextMenu {
+                    id: resetContextMenu
+                    y: -100
+
+                    Action {
+                        text: "Full reset"
+                        onTriggered: {
+                            backend.fullReset()
+                        }
+                    }
+
+                    onClosed: {
+                        keyboardFocus.forceActiveFocus()
+                    }
                 }
             }
 
@@ -215,7 +739,7 @@ ApplicationWindow {
                 height: controls.height
                 width: height
                 icon: "qrc:/icons/back.svg"
-                tooltip: "previous image (left)"
+                tooltip: "Previous image (Left)"
                 color: "#303030"
                 onPressed: {
                     prev()
@@ -226,7 +750,7 @@ ApplicationWindow {
                 height: controls.height
                 width: height
                 icon: "qrc:/icons/next.svg"
-                tooltip: "next image (right)"
+                tooltip: "Next image (Right)"
                 color: "#303030"
                 onPressed: {
                     next()
@@ -246,14 +770,17 @@ ApplicationWindow {
 
         Tags {
             id: currentTagsList
-            active: backend.active
             model: backend.tags
             anchors.fill: parent
-            highlight: "#ba0000"
 
             function getOverlay(tag, index) {
-                return index == currentTagsList.selected ? "#22ffffff" : "#00000000"
+                return backend.lookup(tag) ? "#00000000" : "#33550000"
             } 
+
+            onPressed: {
+                searchTagsList.deselect()
+                favTagsList.deselect()
+            }
 
             onDoublePressed: {
                 currentTagsList.remove(index)
@@ -448,8 +975,6 @@ ApplicationWindow {
                 horizontalAlignment: Text.AlignHCenter
             }
         }
-
-
     }
 
     MouseArea {
@@ -479,7 +1004,7 @@ ApplicationWindow {
                 event.accepted = true
                 break;
             case Qt.Key_R:
-                media.reset()
+                backend.reset()
                 event.accepted = true
                 break;
             case Qt.Key_F:
@@ -526,6 +1051,15 @@ ApplicationWindow {
                 media.right()
                 event.accepted = true
                 break;
+            case Qt.Key_T:
+                changeMode()
+                event.accepted = true
+                break;
+            case Qt.Key_O:
+                save()
+                backend.writeDebugCrop()
+                event.accepted = true
+                break;
             default:
 
             }
@@ -534,7 +1068,7 @@ ApplicationWindow {
         Connections {
             target: backend
             function onImageUpdated() {
-                media.reset()
+                sync()
             }
         }
     }

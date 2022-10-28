@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 24 24"
+   version="1.1"
+   id="svg2239"
+   sodipodi:docname="crop.svg"
+   inkscape:version="1.2.1 (9c6d41e410, 2022-07-14, custom)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2243" />
+  <sodipodi:namedview
+     id="namedview2241"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="16.291667"
+     inkscape:cx="12.982097"
+     inkscape:cy="15.222506"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg2239" />
+  <g
+     id="g2112"
+     transform="matrix(0.0377163,0,0,0.0377163,-3.08652,0.68511)">
+    <title
+       id="title2106">Layer 1</title>
+    <g
+       id="g2110">
+      <path
+         d="M 632,396 H 592 V 140 c 0,-17.67 -14.33,-32 -32,-32 H 336 v 96 h 160 v 328 c 0,13.25 10.75,24 24,24 h 48 c 13.25,0 24,-10.75 24,-24 v -40 h 40 c 13.25,0 24,-10.75 24,-24 v -48 c 0,-13.26 -10.75,-24 -24,-24 z M 304,68 C 304,54.74 293.25,44 280,44 h -48 c -13.25,0 -24,10.74 -24,24 v 40 h -40 c -13.25,0 -24,10.74 -24,24 v 48 c 0,13.25 10.75,24 24,24 h 40 v 256 c 0,17.67 14.33,32 32,32 H 464 V 396 H 304 Z"
+         fill="currentColor"
+         id="path2108" />
+    </g>
+  </g>
+</svg>

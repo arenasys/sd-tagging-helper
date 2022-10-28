@@ -10,13 +10,17 @@ pip install pillow pyqt5
 ```
 
 ### Workings
-Operates on a folder of input images, each image can optionally have a tag file:
+Operates on a folder of input images. Each image can optionally have an associated tag file.
 ```
-img0000.png
-WITH img0000.txt OR img0000.png.txt
+GIVEN img0000.png
+LOOKS FOR img0000.txt
+LOOKS FOR img0000.png.txt
+LOOKS FOR img0000.png.json
 ```
-The txt file should contain comma seperated tags.
-These inputs are left untouched, all changes made are saved into the metadata folder as json files. So changes are persistant but also no data loss is possible.
+A txt file is expected to contain comma seperated tags. The json file is expected to be a gallery-dl metadata file.
+The input folder/files are left untouched, all changes made are saved into the metadata folder as json files. So changes are persistant but also no data loss is possible.
+
+There are two modes of cropping, you can freely change between them with `T`. Red indicates some metadata changes have not been saved yet, enabling you to revert to the last save with `R`. Metadata is saved automatically when changing modes or changing image. Press the save button or `F` to save manually. To fully reset back to the original input state, right click the reset button to show the option.
 
 When ready the inputs can be packaged into the output folder, in this folder the images will be cropped/resized and the modified tags written.
 The two modes of packaging are:
@@ -24,36 +28,26 @@ The two modes of packaging are:
 - Image/prompt pairs
 
 Single image will save an image with the filename set to the prompt.
-Image/prompt pairs will save the image with its original name and a corresponding text file containing the prompt (like the input folder format)
+Image/prompt pairs will save the image with its original name and a corresponding text file containing the prompt (like the input folder format).
+The prompt will be comma seperated and be cleaned (replace underscores with spaces etc).
 
-The square overlay shows the cropped view, position the image how you would like it cropped. Red indicates that the position has been modified but not saved.
 
 ### Usage
-The minimal usage is just specifying the input folder. A metadata and output folder will be created in the current directory, and the output dimension will be 1024x1024:
-```
-python helper.py --input "path/to/input/folder"
-```
+The minimal usage is to run `helper.py` or `start.bat`. The program will ask you for an input folder, which will be remembered for next time. A metadata and output folder will be created in the current directory, and the output dimension will be 1024x1024. For more parameters read `python help.py --help`.
 
-### Controls
-#### Mouse
+### Hotkeys
 ```
-Middle mouse - drag the image
-Scroll - zoom the image
-Double click - removes an active tag or adds an inactive tag
-Left click - dividers can be dragged to resize the tag lists
-```
-#### Keyboard
-```
-F - save metadata
-R - reset image position to last saved state
-N - auto position image. contain mode
-M - auto position image. fill mode
-WASD - move image
+F - Save metadata
+R - Reset image position to last saved state
+N - Auto position image. contain mode
+M - Auto position image. fill mode
+O - Write current crop to out.png (for testing)
+WASD - Move image
 
-LEFT  - previous image
-RIGHT - next image
-UP    - move selected tag up
-DOWN  - move selected tag down
+LEFT  - Previous image
+RIGHT - Next image
+UP    - Move selected tag up
+DOWN  - Move selected tag down
 ```
 
 ### Compiling

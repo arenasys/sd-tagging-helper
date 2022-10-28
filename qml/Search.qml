@@ -25,7 +25,7 @@ Item {
     TextInput {
         id: search
         color: "white"
-        font.bold: true
+        font.bold: false
         font.pointSize: 12
         selectByMouse: true
         anchors.left: parent.left
@@ -59,6 +59,7 @@ Item {
             text: "Search..."
             anchors.fill: search
             verticalAlignment: Text.AlignVCenter
+            font.bold: false
             font.pointSize: 12
             leftPadding: 8
             topPadding: 1

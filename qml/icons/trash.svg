@@ -1,1 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1em" height="1em" preserveAspectRatio="xMidYMid meet" viewBox="0 0 20 20" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);"><path fill="currentColor" fill-rule="evenodd" d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9ZM7 8a1 1 0 0 1 2 0v6a1 1 0 1 1-2 0V8Zm5-1a1 1 0 0 0-1 1v6a1 1 0 1 0 2 0V8a1 1 0 0 0-1-1Z" clip-rule="evenodd"/></svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="20"
+   height="20"
+   preserveAspectRatio="xMidYMid meet"
+   version="1.1"
+   id="svg12013"
+   sodipodi:docname="trash.svg"
+   inkscape:version="1.2.1 (9c6d41e410, 2022-07-14, custom)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs12017" />
+  <sodipodi:namedview
+     id="namedview12015"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="19.55"
+     inkscape:cx="9.4373401"
+     inkscape:cy="8.5933504"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg12013" />
+  <g
+     id="g12011"
+     transform="matrix(0.85147116,0,0,0.85147116,1.4852884,1.4852884)">
+    <title
+       id="title12008">Layer 1</title>
+    <path
+       id="svg_1"
+       clip-rule="evenodd"
+       d="M 9,2 A 1,1 0 0 0 8.106,2.553 L 7.382,4 H 4 a 1,1 0 0 0 0,2 v 10 a 2,2 0 0 0 2,2 h 8 a 2,2 0 0 0 2,-2 V 6 A 1,1 0 1 0 16,4 H 12.618 L 11.894,2.553 A 1,1 0 0 0 11,2 Z M 7,8 a 1,1 0 0 1 2,0 v 6 a 1,1 0 1 1 -2,0 z m 5,-1 a 1,1 0 0 0 -1,1 v 6 a 1,1 0 1 0 2,0 V 8 A 1,1 0 0 0 12,7 Z"
+       fill-rule="evenodd"
+       fill="currentColor" />
+  </g>
+</svg>

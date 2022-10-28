@@ -3,14 +3,18 @@ import QtQuick.Controls 2.15
 
 Item {
     id: root
-    property int active
     property var model
-    property var highlight
     property int selected: -1
+    property bool moveEnabled: true
 
     signal pressed(string tag, int index)
     signal doublePressed(string tag, int index)
     signal moved(int from, int to)
+    signal contextMenu(string tag, int index)
+
+    function deselect() {
+        selected = -1
+    }
 
     ListModel {
         id: listModel
@@ -28,8 +32,11 @@ Item {
         }
     }
 
-    onActiveChanged: {
-        populate()
+    Connections {
+        target: backend
+        function onUpdated() {
+            populate()
+        }
     }
 
     function remove(i) {
@@ -43,9 +50,11 @@ Item {
     }
 
     function move(from, to) {
-        listModel.move(from, to, 1)
-        moved(from, to)
-        selected = to
+        if(moveEnabled) {
+            listModel.move(from, to, 1)
+            moved(from, to)
+            selected = to
+        }
     }
 
     function up() {
@@ -67,15 +76,10 @@ Item {
         acceptedButtons: Qt.NoButton
         onWheel: {
             if(wheel.angleDelta.y > 0) {
-                if(listView.contentY > 0) {
-                    listView.contentY -= 23
-                }
+                scrollBar.decrease()
             } else {
-                if(listView.contentY+listView.height < 23*listView.count) {
-                    listView.contentY += 23
-                }
+                scrollBar.increase()
             }
-
         }
     }
 
@@ -85,7 +89,10 @@ Item {
         model: listModel
         interactive: false
 
-        ScrollBar.vertical: ScrollBar {    }
+        ScrollBar.vertical: ScrollBar {
+            id: scrollBar
+            stepSize: 1/root.model.length
+        }
 
         spacing: 3
         header: Item {
@@ -103,6 +110,12 @@ Item {
                 height: 20
                 width: listView.width
 
+                Rectangle {
+                    color: model.index == root.selected ? "#1c1c1c" : "transparent"
+                    anchors.fill: parent
+                    anchors.margins: -3
+                }
+
                 Item {
                     id:  padding
                     width: 5
@@ -118,7 +131,36 @@ Item {
                     anchors.top: textLabel.top
                     anchors.bottom: textLabel.bottom
                     radius: 5
-                    color: item.hovered ? "#353535" : "#2a2a2a"
+                    color: item.hovered || favButton.hovered ? "#353535" : "#2a2a2a"
+                }
+
+                Rectangle {
+                    visible: item.hovered || favButton.hovered
+                    id: favBg
+                    anchors.left: bg.right
+                    anchors.leftMargin: 5
+                    anchors.top: textLabel.top
+                    anchors.bottom: textLabel.bottom
+                    width: height
+                    radius: 5
+                    color: "#2a2a2a"
+                }
+
+                IconButton {
+                    z: 0
+                    id: favButton
+                    visible: favBg.visible
+                    anchors.centerIn: favBg
+                    height: parent.height*1.3
+                    width: height
+                    property var favourited: backend.favourites.includes(model.text)
+                    icon: favourited ? "qrc:/icons/star.svg" : "qrc:/icons/star-outline.svg"
+                    color: "transparent"
+                    iconColor: favourited ? "#bd9d35" : "#606060"
+                    iconHoverColor: favourited ? "#a98719" : "#fff"
+                    onPressed: {
+                        backend.toggleFavourite(model.text)
+                    }
                 }
 
                 Text {
@@ -126,7 +168,7 @@ Item {
                     anchors.left: padding.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom                    
-                    width: parent.width - 10
+                    width: favBg.visible ? parent.width - 30 : parent.width - 10
                     elide: Text.ElideRight
                     text: model.text
                     padding: 5
@@ -152,6 +194,10 @@ Item {
                 root.selected = model.index
                 root.pressed(model.text, model.index)
                 item.isDouble = !item.isDouble
+            }
+
+            onContextMenu: {
+                root.contextMenu(model.text, model.index)
             }
 
             onDoublePressed: {

@@ -5,6 +5,7 @@ Rectangle {
     id: view
     property string source
     property string type
+    property bool locked: true
 
     property var fx: full.x
     property var fy: full.y
@@ -24,16 +25,23 @@ Rectangle {
 
     property bool changed: true
 
-    color: "#202020"
+    color: locked ? "#00000000" : "#202020"
 
-    function reset() {
-        view.scale = default_s
-        full.maxWidth = view.width * view.scale
-        full.maxHeight = view.height * view.scale
-        full.anchors.centerIn = undefined
-        full.x = view.width * view.default_ox
-        full.y = view.width * view.default_oy
-        view.changed = false
+    function sync() {
+        if(view.locked) {
+            full.anchors.centerIn = view
+            full.maxWidth = view.width
+            full.maxHeight = view.height
+            view.changed = false
+        } else {
+            view.scale = default_s
+            full.maxWidth = view.width * view.scale
+            full.maxHeight = view.height * view.scale
+            full.anchors.centerIn = undefined
+            full.x = view.width * view.default_ox
+            full.y = view.width * view.default_oy
+            view.changed = false
+        }
     }
 
     function up() {
@@ -65,7 +73,7 @@ Rectangle {
         onStatusChanged: {
             if(status == Image.Ready) {
                 full.sync()
-                reset()
+                //sync()
             }
         }
     }
@@ -73,7 +81,7 @@ Rectangle {
     MouseArea {
         id: mouse
         anchors.fill: parent
-        acceptedButtons: Qt.MiddleButton
+        enabled: !view.locked
 
         property var startX: 0
         property var startY: 0

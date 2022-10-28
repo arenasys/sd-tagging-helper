@@ -1,4 +1,6 @@
 import sys
+import traceback
+import datetime
 import glob
 import os
 import json
@@ -7,9 +9,47 @@ import argparse
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt
-from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtQml import QQmlApplicationEngine
+from PyQt5.QtWidgets import QFileDialog, QApplication
 import qml_rc
+
+CONFIG = "config.json"
+EXT = [".png", ".jpg", ".jpeg", ".webp"]
+
+def get_metadata(image_file):
+    tags = []
+    m1 = image_file + ".txt"
+    m2 = ".".join(image_file.split(".")[:-1]) + ".txt"
+    for m in [m1, m2]:
+        if os.path.isfile(m):
+            tags = get_tags(m)
+            break
+    else:
+        g = image_file + ".json"
+        if os.path.isfile(g):
+            tags = get_tags_gallerydl(g)
+    return tags
+
+def get_images(images_path, metadata_path):
+    images_path = os.path.abspath(images_path)
+    metadata_path = os.path.abspath(metadata_path)
+
+    images = []
+
+    files = []
+    for e in EXT:
+        files += glob.glob(images_path + "/*" + e)
+
+    for f in files:
+        m = os.path.join(metadata_path, os.path.basename(f) + ".json")
+
+        img = Img(f, m)
+        img.readMetadata()
+        if not img.ready:
+            img.tags = get_metadata(f)
+        images += [img]
+
+    return images
 
 def positionCenter(w, h, d):
     if w > h:
@@ -32,7 +72,6 @@ def positionFill(w, h, d):
 def extract_tags_gallerydl(text):
     j = json.loads(text)
     booru = j["category"]
-    print(booru)
     tags = []
     if booru == "danbooru" or booru == "sankaku":
         tags = j["tag_string"].split()
@@ -43,6 +82,7 @@ def extract_tags_gallerydl(text):
         exit(1)
     tags = [t.strip() for t in tags]
     return tags
+
 def extract_tags(text):
     seperator = " "
     if "," in text:
@@ -55,6 +95,76 @@ def tags_to_prompt(tags):
     prompt = ", ".join(tags)
     #prompt = re.sub(r'\([^)]*\)', '', prompt)
     return prompt
+
+def get_edge_colors(img, vertical, inset=0.01, samples=16):
+    a = (0,0,0)
+    b = (0,0,0)
+
+    inset = int(min(img.size[0], img.size[1])*0.01)
+
+    a_s = []
+    b_s = []
+
+    if vertical:
+        for y in range(0, img.size[1], img.size[1]//samples):
+            a_s += [img.getpixel((inset,y))]
+            b_s += [img.getpixel((img.size[0]-1-inset,y))]
+    else:
+        for x in range(0, img.size[0], img.size[0]//samples):
+            a_s += [img.getpixel((x,inset))]
+            b_s += [img.getpixel((x,img.size[1]-1-inset))]
+
+    a_v = statistics.variance([sum(i)//3 for i in a_s])
+    b_v = statistics.variance([sum(i)//3 for i in b_s])
+
+    a_t = (0,0,0)
+    b_t = (0,0,0)
+    for i in a_s:
+        a_t = tuple(map(operator.add, a_t, i))
+    for i in b_s:
+        b_t = tuple(map(operator.add, b_t, i))
+    
+    l = len(a_s)
+
+    a_t = tuple(map(operator.floordiv, a_t, (l,l,l)))
+    b_t = tuple(map(operator.floordiv, b_t, (l,l,l)))
+
+    a_t = (int(a_t[0]),int(a_t[1]),int(a_t[2]))
+    b_t = (int(b_t[0]),int(b_t[1]),int(b_t[2]))
+
+    return a_t, b_t, a_v, b_v
+
+def get_tags(tag_file):
+    with open(tag_file, "r") as f:
+        return extract_tags(f.read())
+
+def get_tags_gallerydl(tag_file):
+    with open(tag_file, "r") as f:
+        return extract_tags_gallerydl(f.read())
+
+def get_tags_from_csv(path):
+    tags = []
+    with open(path) as file:
+        for line in file:
+            tags += [line.rstrip().split(",")[0]]
+    return tags
+
+def get_json(file):
+    if not os.path.isfile(file):
+        return {}
+    with open(file, "r") as f:
+        return json.loads(f.read())
+
+def put_json(j, file, append=True):
+    if append and os.path.isfile(file):
+        jj = get_json(file)
+        for k in jj:
+            if not k in j:
+                j[k] = jj[k]
+    
+    with open(file, "w") as f:
+        json.dump(j, f)
+
 
 class Worker(QObject):
     currentCallback = pyqtSignal(int)
@@ -117,13 +227,15 @@ class Img:
         
     def readMetadata(self):
         if not os.path.isfile(self.metadata_path):
-            return
+            self.tags = []
+            return False
         metadata = {}
         with open(self.metadata_path, 'r') as f:
             metadata = json.load(f)
         x,y,s = metadata["offset_x"], metadata["offset_y"], metadata["scale"]
         self.setCrop(x,y,s)
         self.tags = metadata["tags"]
+        return True
     
     def writeMetadata(self):
         metadata = {"offset_x": self.offset_x,
@@ -179,6 +291,20 @@ class Img:
         self.tags.insert(to_idx, self.tags.pop(from_idx))
         self.changed = True
 
+    def setTags(self, tags):
+        self.tags = tags
+        self.changed = True
+
+    def reset(self):
+        if not self.readMetadata():
+            self.fill()
+        self.changed = False
+    
+    def fullReset(self):
+        self.tags = get_metadata(self.source)
+        self.fill()
+        self.writeMetadata()
+        self.changed = False
 
 class Backend(QObject):
     updated = pyqtSignal()
@@ -187,6 +313,7 @@ class Backend(QObject):
     imageUpdated = pyqtSignal()
     searchUpdated = pyqtSignal()
     workerUpdated = pyqtSignal()
+    favUpdated = pyqtSignal()
 
     workerSetup = pyqtSignal(int,int)
     workerStart = pyqtSignal()
@@ -195,11 +322,15 @@ class Backend(QObject):
         super().__init__(parent)
         self._images = images
         self._tags = tags
+        self._lookup = set(tags)
         self._results = tags
         self._active = -1
         self.setActive(0)
         self._current = self._images[self._active]
         self._dim = dimension
+
+        self._fav = []
+        self.loadFavourites()
 
         self.worker = Worker(self._images, out_folder, self._dim)
         self.workerCurrent = 0
@@ -223,7 +354,7 @@ class Backend(QObject):
         self._active = a
         self._current = self._images[self._active]
         if not self._current.ready:
-            self._current.center()
+            self._current.fill()
         
         self.changedUpdated.emit()
         self.imageUpdated.emit()
@@ -262,6 +393,13 @@ class Backend(QObject):
     @pyqtProperty('QString', notify=updated)
     def title(self):
         return f"Tagger {self._active+1} of {len(self._images)}"
+    @pyqtProperty(list, notify=favUpdated)
+    def favourites(self):
+        return self._fav
+
+    @pyqtSlot('QString', result=bool)
+    def lookup(self, tag):
+        return tag in self._lookup
 
     @pyqtSlot('QString')
     def addTag(self, tag):
@@ -292,8 +430,6 @@ class Backend(QObject):
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
-        #self._current.writeCrop("out.png", self._dim)
-
     @pyqtSlot()
     def saveMetadata(self):
         self._current.writeMetadata()
@@ -311,6 +447,18 @@ class Backend(QObject):
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
+    @pyqtSlot()
+    def writeDebugCrop(self):
+        self._current.writeCrop("out.png", self._dim)
+
+    @pyqtSlot()
+    def reset(self):
+        self._current.reset()
+        self.tagsUpdated.emit()
+        self.imageUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
+
     @pyqtSlot('QString')
     def search(self, s):
         if not s:
@@ -325,130 +473,161 @@ class Backend(QObject):
         if current == 0:
             self.thread.quit()
 
-
     @pyqtSlot(int, int)
     def package(self, mode, ext):
         self.thread.start()
         self.workerSetup.emit(mode, ext)
         self.workerStart.emit()
 
-ext = [".png", ".jpg", ".jpeg", ".webp"]
-def get_images(images_path, metadata_path):
-    images_path = os.path.abspath(images_path)
-    metadata_path = os.path.abspath(metadata_path)
+    @pyqtSlot()
+    def cleanTags(self):
+        tags = [t for t in self._current.tags if t in self._lookup]
+        self._current.setTags(tags)
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
 
-    images = []
+    @pyqtSlot()
+    def sortTags(self):
+        tags = [t for t in self._tags if t in self._current.tags]
+        tags += [t for t in self._current.tags if not t in tags]
+        self._current.setTags(tags)
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
 
-    files = []
-    for e in ext:
-        files += glob.glob(images_path + "/*" + e)
+    @pyqtSlot()
+    def fullReset(self):
+        self._current.fullReset()
+        self.imageUpdated.emit()
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
 
-    for f in files:
-        m = os.path.join(metadata_path, os.path.basename(f) + ".json")
+    @pyqtSlot('QString')
+    def addFavourite(self, tag):
+        self._fav += [tag]
+        self.favUpdated.emit()
+        self.saveFavourites()
 
-        img = Img(f, m)
-        img.readMetadata()
-        if not img.ready:
-            tags = []
-            m1 = f + ".txt"
-            m2 = ".".join(f.split(".")[:-1]) + ".txt"
-            for m in [m1, m2]:
-                if os.path.isfile(m):
-                    tags = get_tags(m)
-                    break
-            else:
-                g = f + ".json"
-                if os.path.isfile(g):
-                    tags = get_tags_gallerydl(g)
+    @pyqtSlot('QString')
+    def toggleFavourite(self, tag):
+        if tag in self._fav:
+            del self._fav[self._fav.index(tag)]
+        else:
+            self._fav += [tag]
+        self.favUpdated.emit()
+        self.saveFavourites()
 
-            img.tags = tags
-        images += [img]
+    @pyqtSlot(int)
+    def deleteFavourite(self, idx):
+        del self._fav[idx]
+        self.favUpdated.emit()
+        self.saveFavourites()
 
-    return images
+    @pyqtSlot(int, int)
+    def moveFavourite(self, from_idx, to_idx):
+        self._fav.insert(to_idx, self._fav.pop(from_idx))
+        self.favUpdated.emit()
+        self.saveFavourites()
+    
+    def loadFavourites(self):
+        j = get_json(CONFIG)
+        if 'fav' in j:
+            self._fav = j["fav"]
 
-def get_tags(tag_file):
-    with open(tag_file, "r") as f:
-        return extract_tags(f.read())
+    def saveFavourites(self):
+        put_json({"fav": self._fav}, CONFIG)
 
-def get_tags_gallerydl(tag_file):
-    with open(tag_file, "r") as f:
-        return extract_tags_gallerydl(f.read())
+def start():
+    parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
+    parser.add_argument('--input', type=str, help='folder to load images with optional associated tag file (eg: img.png, img.png.txt)')
+    parser.add_argument('--dimension', type=int, help='dimension of output images. defaults to 1024x1024')
+    parser.add_argument('--metadata', type=str, help='folder to store metadata for each image. defaults to "metadata"')
+    parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "output"')
+    parser.add_argument('--tags', type=str, help='optional tag index file. defaults to danbooru tags')
+    args = parser.parse_args()
 
-def get_tags_from_csv(path):
-    tags = []
-    with open(path) as file:
-        for line in file:
-            tags += [line.rstrip().split(",")[0]]
-    return tags
+    in_folder = args.input
+    dim = args.dimension
+    out_folder = args.output
+    meta_folder = args.metadata
+    tags_file = args.tags
 
+    # check all the args, make sure they point to real folders/files, create default folders, etc
+    if in_folder and not os.path.isdir(in_folder):
+        print(f"ERROR: input folder '{in_folder}' does not exist!")
+        exit(1)
 
-parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
-parser.add_argument('--input', type=str, help='folder to load images with optional associated tag file (eg: img.png, img.png.txt)')
-parser.add_argument('--dimension', type=int, help='dimension of output images. defaults to 1024x1024')
-parser.add_argument('--metadata', type=str, help='folder to store metadata for each image. defaults to "metadata"')
-parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "output"')
-parser.add_argument('--tags', type=str, help='optional tag index file. defaults to danbooru tags')
-args = parser.parse_args()
+    if not out_folder:
+        out_folder = "output"
+        if not os.path.exists(out_folder):
+            os.makedirs(out_folder)
+    if not os.path.isdir(out_folder):
+        print(f"ERROR: output folder '{out_folder}' does not exist!")
+        exit(1)
 
-in_folder = args.input
-dim = args.dimension
-out_folder = args.output
-meta_folder = args.metadata
-tags_file = args.tags
+    if not meta_folder:
+        meta_folder = "metadata"
+        if not os.path.exists(meta_folder):
+            os.makedirs(meta_folder)
+    if not os.path.isdir(meta_folder):
+        print(f"ERROR: metadata folder '{out_folder}' does not exist!")
+        exit(1)
 
-if not in_folder:
-    print("ERROR: specify an input folder!")
-    exit(1)
-if not os.path.isdir(in_folder):
-    print(f"ERROR: input folder '{in_folder}' does not exist!")
-    exit(1)
+    if not tags_file:
+        tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
+    if not os.path.isfile(tags_file):
+        print(f"ERROR: tags file '{tags_file}' does not exist!")
+        exit(1)
 
-if not out_folder:
-    out_folder = "output"
-    if not os.path.exists(out_folder):
-        os.makedirs(out_folder)
-if not os.path.isdir(out_folder):
-    print(f"ERROR: output folder '{out_folder}' does not exist!")
-    exit(1)
+    if not dim:
+        dim = 1024
+    if dim % 32 != 0 or dim <= 0:
+        print(f"ERROR: dimension of '{dim}' is not valid!")
 
-if not meta_folder:
-    meta_folder = "metadata"
-    if not os.path.exists(meta_folder):
-        os.makedirs(meta_folder)
-if not os.path.isdir(meta_folder):
-    print(f"ERROR: metadata folder '{out_folder}' does not exist!")
-    exit(1)
+    QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    app = QApplication(sys.argv)
 
-if not tags_file:
-    tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
-if not os.path.isfile(tags_file):
-    print(f"ERROR: tags file '{tags_file}' does not exist!")
-    exit(1)
+    # let the user choose a folder via the GUI, save it for later
+    if not in_folder:
+        if os.path.isfile(CONFIG):
+            in_folder = get_json(CONFIG)["in_folder"]
+        else:
+            in_folder = str(QFileDialog.getExistingDirectory(None, "Select Input Folder"))
+            put_json({"in_folder": in_folder}, CONFIG)
 
-if not dim:
-    dim = 1024
-if dim % 32 != 0 or dim <= 0:
-    print(f"ERROR: dimension of '{dim}' is not valid!")
+    # load all the images/metadata
+    images = get_images(in_folder, meta_folder)
+    tags = get_tags_from_csv(tags_file)
+    print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 
+    if len(images) == 0:
+        print(f"ERROR: no images found!")
+        exit(1)
+    
+    # spin up the GUI
+    backend = Backend(images, tags, out_folder, dim, app)
 
-images = get_images(in_folder, meta_folder)
-tags = get_tags_from_csv(tags_file)
-print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
+    engine = QQmlApplicationEngine()
+    engine.quit.connect(app.quit)
+    ctx = engine.rootContext()
+    ctx.setContextProperty("backend", backend)
 
-if len(images) == 0:
-    print(f"ERROR: no images found!")
-    exit(1)
+    engine.load(QUrl('qrc:/Main.qml'))
 
-QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-app = QGuiApplication(sys.argv)
-backend = Backend(images, tags, out_folder, dim, app)
+    sys.exit(app.exec())
 
-engine = QQmlApplicationEngine()
-engine.quit.connect(app.quit)
-ctx = engine.rootContext()
-ctx.setContextProperty("backend", backend)
+def excepthook(exc_type, exc_value, exc_tb):
+    tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    with open("crash.log", "a") as f:
+        f.write(f"{datetime.datetime.now()}\n{tb}\n")
+    print(tb)
+    print("TRACEBACK SAVED: crash.log")
+    QApplication.quit()
 
-engine.load(QUrl('qrc:/Main.qml'))
-
-sys.exit(app.exec())
+if __name__ == "__main__":
+    sys.excepthook = excepthook
+    start()
+    

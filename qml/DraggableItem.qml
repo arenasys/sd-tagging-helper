@@ -12,6 +12,7 @@ Item {
 
     signal pressed()
     signal doublePressed()
+    signal contextMenu()
 
     property bool hovered: dragArea.containsMouse
 
@@ -41,6 +42,7 @@ Item {
             // Disable smoothed so that the Item pixel from where we started the drag remains under the mouse cursor
             drag.smoothed: false
             hoverEnabled: true
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
 
             onReleased: {
                 if (drag.active) {
@@ -48,7 +50,12 @@ Item {
                 }
             }
             onPressed: {
-                root.pressed()
+                if (mouse.button === Qt.LeftButton) {
+                    root.pressed()
+                } else {
+                    root.contextMenu()
+                }
+                
             }
 
             onDoubleClicked: {

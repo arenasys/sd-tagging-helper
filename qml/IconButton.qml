@@ -12,8 +12,10 @@ Rectangle {
     property bool working: false
     property var inset: 10
     property var tooltip: ""
+    property var hovered: mouse.containsMouse
 
     signal pressed();
+    signal contextMenu();
     signal enter();
     signal leave();
 
@@ -21,10 +23,17 @@ Rectangle {
         anchors.fill: parent
         id: mouse
         hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
 
         onPressed: {
-            if(!disabled)
+            if(disabled)
+                return
+            if (mouse.button === Qt.LeftButton) {
                 button.pressed()
+            } else {
+                button.contextMenu()
+            }
+            
         }
 
         onHoveredChanged: {

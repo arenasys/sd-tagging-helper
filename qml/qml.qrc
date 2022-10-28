@@ -11,6 +11,9 @@
         <file>DraggableItemDropArea.qml</file>
         <file>PopupWindow.qml</file>
         <file>Combo.qml</file>
+        <file>DashedRectangle.qml</file>
+        <file>Handle.qml</file>
+        <file>ContextMenu.qml</file>
 
         <file>icons/cross.svg</file>
         <file>icons/plus.svg</file>
@@ -30,5 +33,8 @@
         <file>icons/refresh.svg</file>
         <file>icons/star-outline.svg</file>
         <file>icons/star.svg</file>
+        <file>icons/sort.svg</file>
+        <file>icons/eye.svg</file>
+        <file>icons/crop.svg</file>
     </qresource>
 </RCC>
