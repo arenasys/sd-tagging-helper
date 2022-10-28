@@ -474,6 +474,9 @@ class Backend(QObject):
         self._current = self._images[self._active]
         if not self._current.ready:
             self._current.fill()
+
+        if not self._current.ddb:
+            self._showFrequent = True
         
         self.changedUpdated.emit()
         self.imageUpdated.emit()
@@ -705,17 +708,20 @@ class Backend(QObject):
         if self.ddbLoading:
             return
 
+        if(self._current.ddb):
+            self._showFrequent = False
+
         if self.ddbCurrent == -1:
             self.ddbCurrent = self._active
             im = self._current
             self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
-            self.suggestionsUpdated.emit()
+        
+        self.suggestionsUpdated.emit()
     
     def ddbInterrogateNext(self):
         self.ddbCurrent += 1
         if self.ddbCurrent >= len(self._images):
             self.ddbAll = False
-            self._showFrequent = False
             self.ddbCurrent = -1
             self.suggestionsUpdated.emit()
             return
@@ -747,10 +753,12 @@ class Backend(QObject):
         img = self._images[self.ddbCurrent]
         img.ddb = tags
 
+        if self.ddbCurrent == self._active:
+            self._showFrequent = False
+
         if self.ddbAll:
             self.ddbInterrogateNext()
         else:
-            self._showFrequent = False
             self.ddbCurrent = -1
             self.suggestionsUpdated.emit()
 
