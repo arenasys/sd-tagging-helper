@@ -174,7 +174,67 @@ def to_filename(base, tags, ext):
     name = ''.join([c for c in tags_to_prompt(tags) if not c in illegal])
     return os.path.join(base, name+ext)
 
-class Worker(QObject):
+class DDBWorker(QObject):
+    resultCallback = pyqtSignal(list)
+    loadedCallback = pyqtSignal()
+
+    def __init__(self, webui_folder, parent=None):
+        super().__init__(parent)
+        self.image = None
+        self.webui_folder = webui_folder
+        self.deep_folder = os.path.join(self.webui_folder, 'models', 'deepbooru')
+
+        sys.path.insert(0, self.webui_folder)
+        sys.path.insert(0, self.deep_folder)
+
+    @pyqtSlot()
+    def load(self):
+        import deepdanbooru as dd
+        import tensorflow as tf
+        import numpy as np
+        model_path = os.path.abspath(self.deep_folder)
+        self.tags = dd.project.load_tags_from_project(model_path)
+        self.model = dd.project.load_model_from_project(model_path, compile_model=False)
+        self.loadedCallback.emit()
+
+    @pyqtSlot(int, 'QByteArray')
+    def interrogate(self, size, img_bytes):
+        import deepdanbooru as dd
+        import tensorflow as tf
+        import numpy as np
+
+        image = Image.frombytes("RGB", (size,size), img_bytes)
+
+        width = self.model.input_shape[2]
+        height = self.model.input_shape[1]
+        image = np.array(image)
+        image = tf.image.resize(
+            image,
+            size=(height, width),
+            method=tf.image.ResizeMethod.AREA,
+            preserve_aspect_ratio=True,
+        )
+        image = image.numpy()  # EagerTensor to np.array
+        image = dd.image.transform_and_pad_image(image, width, height)
+        image = image / 255.0
+        image_shape = image.shape
+        image = image.reshape((1, image_shape[0], image_shape[1], image_shape[2]))
+
+        v = self.model.predict(image)[0]
+
+        outputs = []
+
+        for i, tag in enumerate(self.tags):
+            outputs += [(tag, v[i])]
+        outputs.sort(key=lambda a: a[1], reverse=True)        
+        
+        if len(outputs) > 100:
+            outputs = outputs[:100]
+
+        self.resultCallback.emit([t[0] for t in outputs])
+
+
+class CropWorker(QObject):
     currentCallback = pyqtSignal(int)
 
     def __init__(self, images, out_folder, dimension, parent=None):
@@ -223,6 +283,7 @@ class Img:
         self.metadata_path = metadata_path
         self.ready = False
         self.changed = False
+        self.ddb = []
 
     def center(self):
         img = Image.open(self.source).convert('RGB')
@@ -256,7 +317,7 @@ class Img:
             json.dump(metadata, f)
         self.changed = False
 
-    def writeCrop(self, crop_file, dim):
+    def doCrop(self, dim):
         img = Image.open(self.source).convert('RGB')
         x, y, w, h = positionCenter(img.size[0], img.size[1], dim)
 
@@ -267,6 +328,10 @@ class Img:
         img = img.resize((int(img.size[0] * s),int(img.size[1] * s)))
         crop = Image.new(mode='RGB',size=(dim,dim))
         crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
+        return crop
+
+    def writeCrop(self, crop_file, dim):
+        crop = self.doCrop(dim)
 
         if crop_file.endswith(".jpg"):
             crop.save(crop_file, quality=95)
@@ -322,14 +387,17 @@ class Backend(QObject):
     tagsUpdated = pyqtSignal()
     imageUpdated = pyqtSignal()
     searchUpdated = pyqtSignal()
-    workerUpdated = pyqtSignal()
     favUpdated = pyqtSignal()
     freqUpdated = pyqtSignal()
 
-    workerSetup = pyqtSignal(int,int)
-    workerStart = pyqtSignal()
+    cropWorkerUpdated = pyqtSignal()
+    cropWorkerSetup = pyqtSignal(int,int)
+    cropWorkerStart = pyqtSignal()
 
-    def __init__(self, images, tags, out_folder, dimension, parent=None):
+    ddbWorkerUpdated = pyqtSignal()
+    ddbWorkerInterrogate = pyqtSignal(int, 'QByteArray')
+
+    def __init__(self, images, tags, out_folder, webui_folder, dimension, parent=None):
         super().__init__(parent)
         self._images = images
         self._tags = tags
@@ -340,20 +408,41 @@ class Backend(QObject):
         self.setActive(0)
         self._current = self._images[self._active]
         self._dim = dimension
+        self.webui_folder = webui_folder
 
         self.search("")
 
         self._fav = []
         self._freq = {}
         self.loadConfig()
+        self.saveConfig()
 
-        self.worker = Worker(self._images, out_folder, self._dim)
-        self.workerCurrent = 0
-        self.thread = QThread(self)
-        self.worker.currentCallback.connect(self.currentCallback)
-        self.workerSetup.connect(self.worker.setup)
-        self.workerStart.connect(self.worker.start)
-        self.worker.moveToThread(self.thread)
+        self.cropWorker = CropWorker(self._images, out_folder, self._dim)
+        self.cropWorkerCurrent = 0
+        self.cropThread = QThread(self)
+        self.cropWorker.currentCallback.connect(self.currentCallback)
+        self.cropWorkerSetup.connect(self.cropWorker.setup)
+        self.cropWorkerStart.connect(self.cropWorker.start)
+        self.cropWorker.moveToThread(self.cropThread)
+
+        self.ddbCurrent = -1
+        self.ddbLoading = True
+        self.ddbActive = self.webui_folder != None
+        self.ddbThread = None
+        if self.ddbActive:
+            self.ddbInit()
+
+        parent.aboutToQuit.connect(self.closing)
+    
+    def ddbInit(self):
+        self.ddbWorker = DDBWorker(self.webui_folder)
+        self.ddbThread = QThread(self)
+        self.ddbWorker.resultCallback.connect(self.ddbResultCallback)
+        self.ddbWorker.loadedCallback.connect(self.ddbLoadedCallback)
+        self.ddbWorkerInterrogate.connect(self.ddbWorker.interrogate)
+        self.ddbWorker.moveToThread(self.ddbThread)
+        self.ddbThread.started.connect(self.ddbWorker.load)
+        self.ddbThread.start()
 
     @pyqtProperty(int, notify=updated)
     def active(self):
@@ -374,6 +463,7 @@ class Backend(QObject):
         self.changedUpdated.emit()
         self.imageUpdated.emit()
         self.tagsUpdated.emit()
+        self.freqUpdated.emit()
         self.updated.emit()
 
     @pyqtProperty('QString', notify=updated)
@@ -397,14 +487,14 @@ class Backend(QObject):
     @pyqtProperty(list, notify=searchUpdated)
     def results(self):
         return self._results
-    @pyqtProperty('QString', notify=workerUpdated)
+    @pyqtProperty('QString', notify=cropWorkerUpdated)
     def workerStatus(self):
-        if self.workerCurrent == 0:
+        if self.cropWorkerCurrent == 0:
             return ""
-        return os.path.basename(self._images[self.workerCurrent-1].source)
-    @pyqtProperty(float, notify=workerUpdated)
+        return os.path.basename(self._images[self.cropWorkerCurrent-1].source)
+    @pyqtProperty(float, notify=cropWorkerUpdated)
     def workerProgress(self):
-        return self.workerCurrent/len(self._images)
+        return self.cropWorkerCurrent/len(self._images)
     @pyqtProperty('QString', notify=updated)
     def title(self):
         return f"Tagging {self._active+1} of {len(self._images)}"
@@ -413,9 +503,19 @@ class Backend(QObject):
         return self._fav
     @pyqtProperty(list, notify=freqUpdated)
     def frequent(self):
+        return self._current.ddb
         f = [(k, self._freq[k]) for k in self._freq]
         f.sort(key=lambda a:a[1], reverse=True)
         return [t[0] for t in f]
+    @pyqtProperty(int, notify=freqUpdated)
+    def ddbStatus(self):
+        if not self.ddbActive:
+            return -2
+        if self.ddbLoading:
+            return -1
+        if self.ddbCurrent == -1:
+            return 0
+        return 1
 
     @pyqtSlot('QString', result=bool)
     def lookup(self, tag):
@@ -509,16 +609,16 @@ class Backend(QObject):
 
     @pyqtSlot(int)
     def currentCallback(self, current):
-        self.workerCurrent = current
-        self.workerUpdated.emit()
+        self.cropWorkerCurrent = current
+        self.cropWorkerUpdated.emit()
         if current == 0:
-            self.thread.quit()
+            self.cropThread.quit()
 
     @pyqtSlot(int, int)
     def package(self, mode, ext):
-        self.thread.start()
-        self.workerSetup.emit(mode, ext)
-        self.workerStart.emit()
+        self.cropThread.start()
+        self.cropWorkerSetup.emit(mode, ext)
+        self.cropWorkerStart.emit()
 
     @pyqtSlot()
     def cleanTags(self):
@@ -571,16 +671,64 @@ class Backend(QObject):
         self._fav.insert(to_idx, self._fav.pop(from_idx))
         self.favUpdated.emit()
         self.saveConfig()
-    
+
+    @pyqtSlot()
+    def ddbInterrogate(self):
+        if not self.ddbActive:
+            self.webui_folder = str(QFileDialog.getExistingDirectory(None, "Select WebUI Folder"))
+            if not self.webui_folder:
+                return
+            self.ddbActive = True
+            self.ddbInit()
+            self.freqUpdated.emit()
+            self.saveConfig()
+            return
+        
+        if self.ddbLoading:
+            return
+
+        if self.ddbCurrent == -1:
+            self.ddbCurrent = self._active
+            self.ddbWorkerInterrogate.emit(self._dim, self._current.doCrop(self._dim).tobytes())
+            self.freqUpdated.emit()
+
+    @pyqtSlot()
+    def ddbLoadedCallback(self):
+        self.ddbLoading = False
+        self.freqUpdated.emit()
+
+    @pyqtSlot(list)
+    def ddbResultCallback(self, tags):
+        img = self._images[self.ddbCurrent]
+        img.ddb = tags
+        self.ddbCurrent = -1
+        self.freqUpdated.emit()
+
+    @pyqtSlot()
+    def closing(self):
+        if self.ddbThread:
+            self.ddbThread.quit()
+            self.ddbThread.wait()
+
+    @pyqtSlot(list)
+    def ddbResultCallback(self, tags):
+        img = self._images[self.ddbCurrent]
+        img.ddb = tags
+        self.ddbCurrent = -1
+        self.freqUpdated.emit()
+
     def loadConfig(self):
         j = get_json(CONFIG)
         if 'fav' in j:
             self._fav = j["fav"]
         if 'freq' in j:
             self._freq = j["freq"]
+        if 'webui' in j and self.webui_folder == None:
+            self.webui_folder = j["webui"]
 
     def saveConfig(self):
-        put_json({"fav": self._fav, "freq": self._freq}, CONFIG)
+        put_json({"fav": self._fav, "freq": self._freq, "webui": self.webui_folder}, CONFIG)
+
 
 def start():
     parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
@@ -589,6 +737,7 @@ def start():
     parser.add_argument('--metadata', type=str, help='folder to store metadata for each image. defaults to "metadata"')
     parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "output"')
     parser.add_argument('--tags', type=str, help='optional tag index file. defaults to danbooru tags')
+    parser.add_argument('--webui', type=str, help='optional path to stable-diffusion-webui. enables the use of deepdanbooru')
     args = parser.parse_args()
 
     in_folder = args.input
@@ -596,6 +745,7 @@ def start():
     out_folder = args.output
     meta_folder = args.metadata
     tags_file = args.tags
+    webui_folder = args.webui
 
     # check all the args, make sure they point to real folders/files, create default folders, etc
     if in_folder and not os.path.isdir(in_folder):
@@ -616,9 +766,15 @@ def start():
         if not os.path.exists(meta_folder):
             os.makedirs(meta_folder)
     if not os.path.isdir(meta_folder):
-        print(f"ERROR: metadata folder '{out_folder}' does not exist!")
+        print(f"ERROR: metadata folder '{metadata_folder}' does not exist!")
         exit(1)
     meta_folder = os.path.abspath(meta_folder)
+    
+    if webui_folder and not os.path.isdir(webui_folder):
+        print(f"ERROR: webui folder '{webui_folder}' does not exist!")
+        exit(1)
+    if webui_folder:
+        webui_folder = os.path.abspath(webui_folder)
 
     if not tags_file:
         tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
@@ -654,7 +810,7 @@ def start():
         exit(1)
     
     # spin up the GUI
-    backend = Backend(images, tags, out_folder, dim, app)
+    backend = Backend(images, tags, out_folder, webui_folder, dim, parent=app)
 
     engine = QQmlApplicationEngine()
     engine.quit.connect(app.quit)

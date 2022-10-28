@@ -543,12 +543,15 @@ ApplicationWindow {
             height: parent.height
             width: height
             icon: "qrc:/icons/brain.svg"
-            tooltip: "Interrogate via DeepDanbooru"
+            property int s: backend.ddbStatus
+
+            tooltip: s == -2 ? "Load DeepDanbooru?" : s == -1 ? "Loading..." : "Interrogate via DeepDanbooru"
             color: "#303030"
-            iconColor: "#516a98"
-            iconHoverColor: "#5d91f0"
+            iconColor: s <= -1 ? "#424242" : "#516a98"
+            iconHoverColor: s <= -1 ? "#424242" : "#5d91f0"
+            working: backend.ddbStatus > 0
             onPressed: {
-                
+                backend.ddbInterrogate()
             }
         }
     }
