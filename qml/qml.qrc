@@ -14,6 +14,12 @@
         <file>DashedRectangle.qml</file>
         <file>Handle.qml</file>
         <file>ContextMenu.qml</file>
+        <file>TagsColumn.qml</file>
+        <file>DDBColumn.qml</file>
+        <file>CurrentColumn.qml</file>
+        <file>View.qml</file>
+        <file>PackageWindow.qml</file>
+        <file>DDBButton.qml</file>
 
         <file>icons/cross.svg</file>
         <file>icons/plus.svg</file>

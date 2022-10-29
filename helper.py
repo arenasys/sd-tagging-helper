@@ -522,13 +522,13 @@ class Backend(QObject):
     def favourites(self):
         return self._fav
     @pyqtProperty(list, notify=suggestionsUpdated)
-    def suggestions(self):
-        if self._showFrequent:
-            f = [(k, self._freq[k]) for k in self._freq]
-            f.sort(key=lambda a:a[1], reverse=True)
-            return [t[0] for t in f]
-        else:
-            return self._current.ddb
+    def frequent(self):
+        f = [(k, self._freq[k]) for k in self._freq]
+        f.sort(key=lambda a:a[1], reverse=True)
+        return [t[0] for t in f]
+    @pyqtProperty(list, notify=suggestionsUpdated)
+    def ddb(self):
+        return self._current.ddb
     @pyqtProperty(int, notify=suggestionsUpdated)
     def ddbStatus(self):
         if not self.ddbActive:

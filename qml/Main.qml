@@ -8,7 +8,9 @@ ApplicationWindow {
     height: 600
     title: backend.title
     id: root
-    property var mode: true
+    property var cropMode: true
+    property var layoutMode: false
+    property var needsSaving: view.changed || backend.changed
 
     onWidthChanged: {
         sync()
@@ -19,30 +21,22 @@ ApplicationWindow {
     }
 
     function save() {
-        if(root.mode) {
-            backend.applyCrop((media.x + media.fx)-cropAlt.x, (media.y + media.fy)-cropAlt.y, media.fw, media.fh, cropAlt.width, cropAlt.height)
-            cropAlt.changed = false
-        } else {
-            backend.applyCrop((media.x + media.fx)-crop.x, (media.y + media.fy)-crop.y, media.fw, media.fh, crop.width, crop.height)
-            media.changed = false
-        }
+        backend.applyCrop((view.media.x + view.media.fx)-view.crop.x, (view.media.y + view.media.fy)-view.crop.y, view.media.fw, view.media.fh, view.crop.width, view.crop.height)
+        view.unchange()
         backend.saveMetadata()
-        
     }
 
     function next() {
-        if(saveButton.needsSaving) {
+        if(needsSaving) {
             save()
         }
-
         backend.active += 1
     }
 
     function prev() {
-        if(saveButton.needsSaving) {
+        if(needsSaving) {
             save()
         }
-
         backend.active -= 1
     }
 
@@ -51,21 +45,23 @@ ApplicationWindow {
     }
 
     function sync() {
-        if(root.mode) {
-            cropAlt.sync()
-            media.sync()
-        } else {
-            media.sync()
-        }
+        view.sync()
     }
 
     function changeMode() {
-        if(media.changed || cropAlt.changed) {
+        if(view.changed) {
             save()
         }
-        root.mode = !root.mode
-        media.sync()
-        cropAlt.sync()
+        root.cropMode = !root.cropMode
+        view.sync()
+    }
+
+    function changeLayout() {
+        root.layoutMode = !root.layoutMode
+        leftDivider.setup()
+        rightDivider.setup()
+        centerDivider.setup()
+        sync()
     }
 
     Rectangle {
@@ -74,889 +70,66 @@ ApplicationWindow {
         anchors.fill: parent
     }
 
-    Rectangle {
+    View {
         id: view
-        color: "#000000"
+        needsSaving: root.needsSaving
+        mode: root.cropMode
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.left: leftDivider.right
-        anchors.right: rightDivider.left
-        anchors.margins: 4
-
-        onWidthChanged: {
-            sync()
-        }
-        
-        onHeightChanged: {
-            sync()
-        }
+        anchors.left: layoutMode ? rightDivider.right : leftDivider.right
+        anchors.right: layoutMode ? parent.right : rightDivider.left
     }
     
-    Media {
-        id: media
-        locked: root.mode
-        source: backend.source
-        anchors.fill: crop
-        default_ox: backend.offset_x
-        default_oy: backend.offset_y
-        default_s: backend.scale
-
-        Component.onCompleted: {
-            media.sync()
-        }
-    }
-
-    Rectangle {
-        id: cropOutline
-        visible: crop.visible
-        color: "#00000000"
-        border.width: 4
-        border.color: saveButton.needsSaving ? "#aaff0000": "#aa00ff00"
-        x: crop.x-4
-        y: crop.y-4
-        width: crop.width + 8
-        height: crop.height + 8
-    }
-
-    Rectangle {
-        id: crop
-        visible: !root.mode
-        color: "#00000000"
-        anchors.centerIn: view
-        width: Math.min(view.width, view.height)
-        height: width
-    }
-
-    Rectangle {
-        id: cropAltOutline
-        visible: cropAlt.visible
-        color: "#00000000"
-        border.width: 4
-        border.color: saveButton.needsSaving ? "#aaff0000": "#aa00ff00"
-        x: Math.ceil(cropAlt.x-4)
-        y: Math.ceil(cropAlt.y-4)
-        width: Math.floor(cropAlt.width + 8)
-        height: Math.floor(cropAlt.height + 8)
-    }
-
-    DashedRectangle {
-        id: cropAltOutlineDashed
-        visible: cropAlt.visible
-        x: Math.ceil(cropAlt.x)
-        y: Math.ceil(cropAlt.y)
-        width: Math.floor(cropAlt.width) + 1
-        height: Math.floor(cropAlt.height) + 1
-
-        Handle {
-            id: handleTL
-            anchors.right: parent.left
-            anchors.bottom: parent.top
-        }
-
-        Handle {
-            id: handleTR
-            anchors.left: parent.right
-            anchors.bottom: parent.top
-        }
-
-        Handle {
-            id: handleBR
-            anchors.left: parent.right
-            anchors.top: parent.bottom
-        }
-
-        Handle {
-            id: handleBL
-            anchors.right: parent.left
-            anchors.top: parent.bottom
-        }
-
-        Handle {
-            id: handleL
-            anchors.right: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-        }
-
-        Handle {
-            id: handleR
-            anchors.left: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-        }
-
-        Handle {
-            id: handleT
-            anchors.bottom: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-
-        Handle {
-            id: handleB
-            anchors.top: parent.bottom
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-    }
-
-    Rectangle {
-        id: cropAlt
-        visible: root.mode
-        color: "#00000000"
-        height: width
-
-        property bool changed: true
-
-        property var relX: 0
-        property var relY: 0
-        property var relW: 1.0
-        property var max: Math.min(media.fw, media.fh)
-
-        x: media.x+media.fx + relX*width
-        y: media.y+media.fy + relY*width
-        width: relW*media.width
-
-        function sync() {
-            relW = 1/backend.scale
-            relX = -backend.offset_x
-            relY = -backend.offset_y
-            changed = false
-        }
-    }
-
-    MouseArea {
-        anchors.fill: view
-        enabled: root.mode
-        property var target: cropAlt
-        property var startX: 0
-        property var startY: 0
-        property var posX: 0
-        property var posY: 0
-        property var posW: 0
-        property var posH: 0
-        property var dragging: false
-        property var adjusting: false
-
-        property var lockL: false
-        property var lockR: false
-        property var lockT: false
-        property var lockB: false
-
-        onPressed: {
-            lockL = false
-            lockR = false
-            lockT = false
-            lockB = false
-
-            posX = target.x
-            posY = target.y
-            posW = target.width
-            posH = target.height
-            startX = mouseX
-            startY = mouseY
-            var g = mapToGlobal(startX, startY)
-
-            if(handleTL.contains(g)) {
-                adjusting = true
-                lockR = true
-                lockB = true
-                return
-            }
-            if(handleBR.contains(g)) {
-                adjusting = true
-                lockL = true
-                lockT = true
-                return
-            }
-            if(handleTR.contains(g)) {
-                adjusting = true
-                lockL = true
-                lockB = true
-                return
-            }
-            if(handleBL.contains(g)) {
-                adjusting = true
-                lockR = true
-                lockT = true
-                return
-            }
-            if(handleL.contains(g)) {
-                lockT = true
-            }
-            if(handleR.contains(g)) {
-                lockT = true
-            }
-            if(handleT.contains(g)) {
-                lockL = true
-            }
-            if(handleB.contains(g)) {
-                lockL = true
-            } 
-
-            dragging = true
-        }
-
-        onReleased: {
-            dragging = false
-            adjusting = false
-        }
-
-        function bound(x, y, w, h) {
-            w = Math.max(Math.min(w, target.max), 32)
-
-            x = Math.max(media.fx+crop.x, x)
-            y = Math.max(media.fy+crop.y, y)
-            x = Math.min(media.fx+crop.x+media.fw, x+w)-w
-            y = Math.min(media.fy+crop.y+media.fh, y+h)-h
-
-            var relW = w/media.width
-            var relX = (x - media.x - media.fx)/w
-            var relY = (y - media.y - media.fy)/w
-
-            target.relW = relW
-            target.relX = relX
-            target.relY = relY
-
-            target.changed = true
-        }
-
-        onPositionChanged: {
-            if(dragging || adjusting) {
-                var dx = (mouseX - startX)
-                var dy = (mouseY - startY)
-                var x = posX + dx
-                var y = posY + dy
-                var w = posW
-                var h = posH
-                
-                if(adjusting) {
-                    var d = (dx + dy)/2
-                    var ddx = d
-                    var ddy = d
-
-                    if(lockT && lockR) {
-                        d = (dx - dy)/2
-                        ddx = d
-                        ddy = -d
-                    }
-
-                    if(lockB && lockL) {
-                        d = (-dx + dy)/2
-                        ddx = -d
-                        ddy = d
-                    }
-
-                    if(lockR) {
-                        x = posX + ddx
-                        w = posW - ddx
-                    }
-                    if(lockL) {
-                        x = posX
-                        w = posW + ddx
-                    }
-                    if(lockB) {
-                        y = posY + ddy
-                        h = posH - ddy
-                    }
-                    if(lockT) {
-                        y = posY
-                        h = posH + ddy
-                    }
-                }
-
-                if(dragging) {
-                    if(lockL || lockR) {
-                        x = posX
-                    }
-                    if(lockT || lockB) {
-                        y = posY
-                    }
-                }
-
-                if(w > 32) {
-                    bound(x, y, w, h)
-                    bound(target.x, target.y, target.width, target.height)
-                }
-            }
-        }
-
-        onWheel: {
-            if(wheel.angleDelta.y > 0) {
-                wheel.accepted = true
-
-                if(target.relW > 0.2) {
-                    var o = target.width * 0.05
-                    bound(target.x+o/2, target.y+o/2, target.width-o, target.height-o)
-                    bound(target.x, target.y, target.width, target.height)
-                }
-
-            } else {
-                wheel.accepted = true
-
-                if(target.relW < 1.0) {
-                    var o = target.width * 0.05
-                    bound(target.x-o/2, target.y-o/2, target.width + o, target.height + o)
-                    bound(target.x, target.y, target.width, target.height)
-                }
-            }
-        }
-    }
-
-    Rectangle {
-        visible: !root.mode
-        color: "#aa000000"
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.left: leftDivider.right
-        anchors.right: crop.left
-        anchors.rightMargin: 4
-    }
-    Rectangle {
-        visible: !root.mode
-        color: "#aa000000"
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.left: crop.right
-        anchors.right: rightDivider.left
-        anchors.leftMargin: 4
-    }
-    Rectangle {
-        visible: !root.mode
-        color: "#aa000000"
-        anchors.top: parent.top
-        anchors.bottom: crop.top
-        anchors.left: leftDivider.right
-        anchors.right: rightDivider.left
-        anchors.bottomMargin: 4
-    }
-    Rectangle {
-        visible: !root.mode
-        color: "#aa000000"
-        anchors.top: crop.bottom
-        anchors.bottom: parent.bottom
-        anchors.left: leftDivider.right
-        anchors.right: rightDivider.left
-        anchors.topMargin: 4
-    }
-
-    Search {
-        id: searchBox
-        anchors.top: parent.top
-        height: 30
+    TagsColumn {
+        id: tags
+        layoutMode: root.layoutMode
         anchors.left: parent.left
         anchors.right: leftDivider.left
-        
-        onFocusReleased: {
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+
+        onDeselect: {
+            current.doDeselect()
+        }
+    }
+
+    CurrentColumn {
+        id: current
+        needsSaving: root.needsSaving
+        anchors.left: layoutMode ? centerDivider.right : rightDivider.right
+        anchors.right: layoutMode ? rightDivider.left : parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+
+        onSave: {
+            root.save()
+        }
+        onChangeMode: {
+            root.changeMode()
+        }
+        onPackageWindowOpen: {
+            packageWindow.open()
+        }
+        onFocusRelease: {
             keyboardFocus.forceActiveFocus()
         }
-
-        onTextChanged: {
-            search(searchBox.text)
+        onPrev: {
+            root.prev()
+        }
+        onNext: {
+            root.next()
+        }
+        onDeselect: {
+            tags.doDeselect()
         }
     }
 
-    Rectangle {
-        id: searchTags
-        color: "#202020"
-        anchors.top: searchBox.bottom
-        anchors.bottom: sugDivider.top
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        clip: true
-
-        Tags {
-            id: searchTagsList
-            model: backend.results
-            anchors.fill: parent
-            moveEnabled: false
-
-            function getOverlay(tag, index) {
-                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
-            }
-
-            onPressed: {
-                currentTagsList.deselect()
-                favTagsList.deselect()
-            }
-
-            onDoublePressed: {
-                if(!backend.tags.includes(tag)) {
-                    backend.addTag(tag)
-                    currentTagsList.add(tag)
-                }
-            }
-
-            onModelChanged: {
-                populate()
-            }
-        }
-    }
-
-    Rectangle {
-        z:10
-        id: sugDivider
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        height: 5
-        property int minY: 30
-        property int maxY: parent.height - 10
-        color: "#404040"
-
-        Component.onCompleted: {
-            y = parent.height/3
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            onPositionChanged: {
-                if(pressedButtons) {
-                    sugDivider.y = Math.min(sugDivider.maxY, Math.max(sugDivider.minY, sugDivider.y + mouseY))
-                }
-            }
-        }
-
-        onMaxYChanged: {
-            sugDivider.y = Math.min(sugDivider.maxY, Math.max(sugDivider.minY, sugDivider.y))
-        }
-    }
-
-    Rectangle {
-        id: sugLabel
-        color: "#303030"
-        anchors.top: sugDivider.bottom
-        height: 30
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        Text {
-            text: "Suggestions"
-            font.pixelSize: 15
-            leftPadding: 8
-            rightPadding: 16
-            font.bold: false
-            color: "white"
-            verticalAlignment: Text.AlignVCenter
-            width: Math.min(parent.width, implicitWidth)
-            elide: Text.ElideRight
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-        }
-
-        
-
-        IconButton {
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: parent.height
-            width: height
-            icon: "qrc:/icons/brain.svg"
-            property int s: backend.ddbStatus
-            id: ddbButton
-
-            tooltip: {
-                if(s == -2)
-                    return "Load DeepDanbooru?"
-                if(s == -1)
-                    return "Loading..."
-                if(s == 0)
-                    return "Interrogate via DeepDanbooru"
-                if(s == 1)
-                    return "Interrogating..."
-                return "Interrogating " + String(s-1) + " of " + String(backend.total)
-                
-            }
-            color: "transparent"
-            iconColor: s <= -1 ? "#424242" : (s > 0 ?  "#83aaf2" : "#516a98")
-            iconHoverColor: s <= -1 ? "#424242" : "#5d91f0"
-            working: backend.ddbStatus > 0
-            glowing: backend.ddbStatus > 0
-            glowColor: "#99437be0"
-            glowStrength: 10
-            onPressed: {
-                save()
-                backend.ddbInterrogate()
-            }
-            onContextMenu: {
-                allContextMenu.popup()
-            }
-
-            ContextMenu {
-                id: allContextMenu
-
-                Action {
-                    text: "Interrogate All?"
-                    onTriggered: {
-                        backend.ddbInterrogateAll()
-                    }
-                }
-
-                onClosed: {
-                    keyboardFocus.forceActiveFocus()
-                }
-            }
-        }
-
-        IconButton {
-            visible: !backend.showingFrequent
-            anchors.right: ddbButton.left
-            anchors.top: parent.top
-            height: parent.height
-            width: height
-            icon: "qrc:/icons/bookshelf.svg"
-            tooltip: "Show frequently used"
-            color: "#303030"
-            onPressed: {
-                backend.showFrequent()
-            }
-        }
-    }
-
-    Rectangle {
-        id: sugTags
-        color: "#202020"
-        anchors.top: sugLabel.bottom
-        anchors.bottom: favDivider.top
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        clip: true
-
-        Tags {
-            id: sugTagsList
-            model: backend.suggestions
-            anchors.fill: parent
-            moveEnabled: false
-
-            function getOverlay(tag, index) {
-                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
-            }
-
-            onPressed: {
-                currentTagsList.deselect()
-                favTagsList.deselect()
-            }
-
-            onDoublePressed: {
-                if(!backend.tags.includes(tag)) {
-                    backend.addTag(tag)
-                    currentTagsList.add(tag)
-                }
-            }
-
-            onModelChanged: {
-                populate()
-            }
-        }
-    }
-
-
-    Rectangle {
-        z:10
-        id: favDivider
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        height: 5
-        property int minY: sugDivider.y + 5
-        property int maxY: parent.height-5
-        color: "#404040"
-
-        Component.onCompleted: {
-            y = 2*parent.height/3
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            onPositionChanged: {
-                if(pressedButtons) {
-                    favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y + mouseY))
-                }
-            }
-        }
-
-        onMinYChanged: {
-            favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y))
-        }
-
-        onMaxYChanged: {
-            favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y))
-        }
-    }
-
-    Rectangle {
-        id: favLabel
-        color: "#303030"
-        anchors.top: favDivider.bottom
-        height: 30
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        Text {
-            text: "Favourites"
-            font.pixelSize: 15
-            leftPadding: 8
-            rightPadding: 16
-            font.bold: false
-            color: "white"
-            verticalAlignment: Text.AlignVCenter
-            width: Math.min(parent.width, implicitWidth)
-            elide: Text.ElideRight
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-        }
-
-        IconButton {
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: parent.height
-            width: height
-            icon: "qrc:/icons/plus.svg"
-            tooltip: "Add all"
-            color: "#303030"
-            onPressed: {
-                for(var i = 0; i < backend.favourites.length; i++) {
-                    var tag = backend.favourites[i]
-                    if(!backend.tags.includes(tag)) {
-                        backend.addTag(tag)
-                        currentTagsList.add(tag)
-                    }
-                }
-            }
-        }
-    }
-
-    Rectangle {
-        id: favTags
-        color: "#202020"
-        anchors.top: favLabel.bottom
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: leftDivider.left
-        clip: true
-
-        Tags {
-            id: favTagsList
-            model: backend.favourites
-            anchors.fill: parent
-
-            function getOverlay(tag, index) {
-                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
-            } 
-
-            onPressed: {
-                searchTagsList.deselect()
-                currentTagsList.deselect()
-            }
-
-            onDoublePressed: {
-                if(!backend.tags.includes(tag)) {
-                    backend.addTag(tag)
-                    currentTagsList.add(tag)
-                }
-            }
-       
-            onMoved: {
-                backend.moveFavourite(from, to)
-            }
-
-            onModelChanged: {
-                populate()
-            }
-        }
-    }
-
-
-
-    Rectangle {
-        id: currentLabel
-        color: "#303030"
+    DDBColumn {
+        visible: layoutMode
         anchors.top: parent.top
-        height: 30
-        anchors.left: rightDivider.right
-        anchors.right: parent.right
-        Text {
-            text: "Active Tags"
-            font.pixelSize: 15
-            leftPadding: 8
-            rightPadding: 16
-            font.bold: false
-            color: "white"
-            verticalAlignment: Text.AlignVCenter
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-        }
-
-        Row {
-            width: Math.min(parent.width, implicitWidth)
-            anchors.right: parent.right
-            IconButton {
-                height: currentLabel.height
-                width: height
-                icon: "qrc:/icons/trash.svg"
-                tooltip: "Remove unknown"
-                color: "#303030"
-                id: cleanButton
-                onPressed: {
-                    backend.cleanTags()
-                }
-            }
-
-            IconButton {
-                height: currentLabel.height
-                width: height
-                icon: "qrc:/icons/sort.svg"
-                tooltip: "Sort by popularity"
-                color: "#303030"
-                id: sortButton
-                onPressed: {
-                    backend.sortTags()
-                }
-            }
-        }
-    }
-
-    Rectangle {
-        id: controls
-        color: "#303030"
-        height: 30
         anchors.bottom: parent.bottom
-        anchors.left: rightDivider.right
-        anchors.right: parent.right
-
-        IconButton {
-            id: packageButton
-            height: controls.height
-            anchors.left: controls.left
-            anchors.top: controls.top
-            width: height
-            icon: "qrc:/icons/package.svg"
-            tooltip: "Package outputs"
-            color: "#303030"
-            working: packageWindow.visible
-            onPressed: {
-                packageWindow.open()
-            }
-        }
-
-        IconButton {
-            height: controls.height
-            anchors.left: packageButton.right
-            anchors.leftMargin: 0
-            anchors.top: controls.top
-            width: height
-            icon: "qrc:/icons/crop.svg"
-            tooltip: "Switch mode (Alt)"
-            color: "#303030"
-            iconColor: !root.mode ? "#aaa" : "#606060"
-            onPressed: {
-                changeMode()
-            }
-        }
-
-        Row {
-            width: Math.min(parent.width, implicitWidth)
-            anchors.right: parent.right
-            IconButton {
-                height: controls.height
-                width: height
-                icon: "qrc:/icons/save.svg"
-                tooltip: "Save metadata (Ctrl+S)"
-                color: "#303030"
-                id: saveButton
-                property bool needsSaving: media.changed || cropAlt.changed || backend.changed
-                iconColor: needsSaving ? "#ba0000" : "green"
-                onPressed: {
-                    save()
-                }
-            }
-
-            IconButton {
-                height: controls.height
-                width: height
-                icon: "qrc:/icons/refresh.svg"
-                tooltip: "Revert to last save (Ctrl+Z)"
-                color: "#303030"
-
-                onPressed: {
-                    backend.reset()
-                }
-
-                onContextMenu: {
-                    resetContextMenu.popup()
-                }
-
-                ContextMenu {
-                    id: resetContextMenu
-                    y: -100
-
-                    Action {
-                        text: "Full reset"
-                        onTriggered: {
-                            backend.fullReset()
-                        }
-                    }
-
-                    onClosed: {
-                        keyboardFocus.forceActiveFocus()
-                    }
-                }
-            }
-
-            IconButton {
-                height: controls.height
-                width: height
-                icon: "qrc:/icons/back.svg"
-                tooltip: "Previous image (Left)"
-                color: "#303030"
-                onPressed: {
-                    prev()
-                }
-            }
-
-            IconButton {
-                height: controls.height
-                width: height
-                icon: "qrc:/icons/next.svg"
-                tooltip: "Next image (Right)"
-                color: "#303030"
-                onPressed: {
-                    next()
-                }
-            }
-        }
-    }
-
-    Rectangle {
-        id: currentTags
-        color: "#202020"
-        anchors.top: currentLabel.bottom
-        anchors.bottom: controls.top
-        anchors.left: rightDivider.right
-        anchors.right: parent.right
-        clip: true
-
-        Tags {
-            id: currentTagsList
-            model: backend.tags
-            anchors.fill: parent
-
-            function getOverlay(tag, index) {
-                return backend.lookup(tag) ? "#00000000" : "#33550000"
-            } 
-
-            onPressed: {
-                searchTagsList.deselect()
-                favTagsList.deselect()
-            }
-
-            onDoublePressed: {
-                currentTagsList.remove(index)
-                backend.deleteTag(index)
-            }
-            
-            onMoved: {
-                backend.moveTag(from, to)
-            }
-        }
-
+        anchors.left: leftDivider.right
+        anchors.right: centerDivider.left
     }
 
     Rectangle {
@@ -969,8 +142,12 @@ ApplicationWindow {
         property int maxX: Math.min(300, rightDivider.x-5)
         color: "#404040"
 
-        Component.onCompleted: {
+        function setup() {
             x = 150
+        }
+
+        Component.onCompleted: {
+            setup()
         }
 
         MouseArea {
@@ -989,12 +166,48 @@ ApplicationWindow {
     }
 
     Rectangle {
+        z:10
+        visible: layoutMode
+        id: centerDivider
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 5
+        property int minX: leftDivider.x+5
+        property int maxX: rightDivider.x-5
+        color: "#404040"
+
+        function setup() {
+            x = 300
+        }
+
+        Component.onCompleted: {
+            setup()
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onPositionChanged: {
+                if(pressedButtons) {
+                    centerDivider.x = Math.min(centerDivider.maxX, Math.max(centerDivider.minX, centerDivider.x + mouseX))
+                }
+            }
+        }
+
+        onMaxXChanged: {
+            centerDivider.x = Math.min(centerDivider.maxX, Math.max(centerDivider.minX, centerDivider.x))
+        }
+    }
+
+    
+
+    Rectangle {
         id: rightDivider
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 5
-        property int minX: 5
-        property int maxX: Math.min(300, parent.width-leftDivider.x)
+        property int minX: layoutMode ? 100 : 5
+        property int maxX: layoutMode ? parent.width-centerDivider.x-5 : Math.min(300, parent.width-leftDivider.x)
         property int offset: 200
         x: parent.width - offset
         color: "#404040"
@@ -1014,131 +227,23 @@ ApplicationWindow {
                 rightDivider.offset = Math.min(rightDivider.maxX, Math.max(rightDivider.minX, rightDivider.offset))
         }
 
+        function setup() {
+            if(layoutMode) {
+                offset = parent.width - 450
+            } else {
+                offset = 190
+            }
+        }
+
         Component.onCompleted: {
-            offset = 200
+            setup()
         }
     }
 
-    PopupWindow {
+    PackageWindow {
         id: packageWindow
-        title: "Package"
-        titleIcon: "qrc:/icons/package.svg"
-        parent: Overlay.overlay
-        modal: true
-        closePolicy: Popup.CloseOnEscape
-
-        x: Math.round((parent.width - width) / 2)
-        y: Math.round((parent.height - height) / 2)
-        width: 280
-        height: 160
-
-        onOpened: {
-            forceActiveFocus()
-        }
-
-        onClosed: {
+        onFocusRelease: {
             keyboardFocus.forceActiveFocus()
-        }
-
-        Text {
-            id: modeLabel
-            text: "Mode"
-            font.pixelSize: 15
-            x: 10
-            y: packageWindow.header.height + 10
-            height: 30
-            leftPadding: 4
-            rightPadding: 16
-            font.bold: true
-            color: "white"
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        Combo {
-            id: mode
-            font.pixelSize: 15
-            anchors.top: modeLabel.top
-            anchors.left: modeLabel.right
-            currentIndex: 0
-            width: 200
-            height: 30
-            model: ["Single Image", "Image/Prompt Pairs"]
-        }
-
-        Text {
-            id: typeLabel
-            text: "Type"
-            font.pixelSize: 15
-            anchors.left: modeLabel.left
-            y: modeLabel.y + 40
-            height: 30
-            leftPadding: 4
-            rightPadding: 16
-            font.bold: true
-            color: "white"
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        Combo {
-            id: type
-            font.pixelSize: 15
-            anchors.top: typeLabel.top
-            anchors.left: mode.left
-            currentIndex: 0
-            width: 200
-            height: 30
-            model: ["jpg", "png"]
-        }
-
-        IconButton {
-            id: startButton
-            y: typeLabel.y + 40
-            anchors.left: parent.left
-            anchors.right: progress.left
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            width: 30
-            height: 30
-            icon: "qrc:/icons/tick.svg"
-            tooltip: "Start!"
-            color: "#202020"
-            onPressed: {
-                backend.package(mode.currentIndex, type.currentIndex)
-            }
-        }
-
-        Rectangle {
-            id: progress
-            anchors.top: startButton.top
-            anchors.bottom: startButton.bottom
-            x: startButton.x + 40
-            anchors.left: mode.left
-            anchors.right: mode.right
-            height: 30
-            color: "#202020"
-
-            Rectangle {
-                id: progressGreen
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: parent.width * backend.workerProgress
-                height: 30
-                color: "green"
-            }
-
-            Text {
-                id: progressLabel
-                text:  backend.workerStatus
-                font.pixelSize: 13
-                anchors.fill: parent
-                leftPadding: 4
-                rightPadding: 16
-                font.bold: true
-                color: "white"
-                verticalAlignment: Text.AlignVCenter
-                horizontalAlignment: Text.AlignHCenter
-            }
         }
     }
 
@@ -1168,7 +273,6 @@ ApplicationWindow {
                 currentTagsList.active = ""
                 event.accepted = true
                 break;
-            
             case Qt.Key_Left:
                 prev()
                 event.accepted = true
@@ -1186,19 +290,19 @@ ApplicationWindow {
                 event.accepted = true
                 break;
             case Qt.Key_W:
-                media.up()
+                view.media.up()
                 event.accepted = true
                 break;
             case Qt.Key_S:
-                media.down()
+                view.media.down()
                 event.accepted = true
                 break;
             case Qt.Key_A:
-                media.left()
+                view.media.left()
                 event.accepted = true
                 break;
             case Qt.Key_D:
-                media.right()
+                view.media.right()
                 event.accepted = true
                 break;
             case Qt.Key_Alt:
@@ -1243,6 +347,10 @@ ApplicationWindow {
                     backend.paste(true)
                     event.accepted = true
                     break;
+                case Qt.Key_L:
+                    changeLayout()
+                    event.accepted = true
+                    break;
                 }
             }
         }
@@ -1254,5 +362,4 @@ ApplicationWindow {
             }
         }
     }
-
 }
