@@ -17,6 +17,7 @@ import qml_rc
 CONFIG = "config.json"
 EXT = [".png", ".jpg", ".jpeg", ".webp"]
 MX_TAGS = 30
+SMILES = []
 
 MX_FILE = 250
 MX_PATH = 4000
@@ -95,7 +96,10 @@ def extract_tags(text):
     return tags
 
 def tags_to_prompt(tags):
-    tags = [t.replace("_", " ") for t in tags]
+    for i in range(len(tags)):
+        t = tags[i]
+        if not t in SMILES:
+            tags[i] = t.replace("_", " ")
     prompt = ", ".join(tags)
     #prompt = re.sub(r'\([^)]*\)', '', prompt)
     return prompt
@@ -786,7 +790,7 @@ class Backend(QObject):
     @pyqtSlot(bool)
     def paste(self, override):
         prompt = QApplication.clipboard().text()
-        tags = [t.strip().replace(" ", "_") for t in prompt.split(", ")]
+        tags = extract_tags(prompt)
         
         real_tags = any([t in self._lookup for t in tags])
         if not real_tags:
@@ -818,6 +822,7 @@ class Backend(QObject):
 
 
 def start():
+    global SMILES
     parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
     parser.add_argument('--input', type=str, help='folder to load images with optional associated tag file (eg: img.png, img.png.txt)')
     parser.add_argument('--dimension', type=int, help='dimension of output images. defaults to 1024x1024')
@@ -893,6 +898,8 @@ def start():
     # load all the images/metadata
     images = get_images(in_folder, meta_folder)
     tags = get_tags_from_csv(tags_file)
+    SMILES = get_tags_from_csv("smiles.csv")
+
     print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 
     if len(images) == 0:
