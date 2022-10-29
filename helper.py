@@ -210,7 +210,11 @@ class DDBWorker(QObject):
         img = Img(file, "")
         if(ready):
             img.setCrop(x,y,s)
+        else:
+            img.fill()
         image = img.doCrop(size)
+
+        image.save("out.png")
 
         width = self.model.input_shape[2]
         height = self.model.input_shape[1]
