@@ -214,8 +214,6 @@ class DDBWorker(QObject):
             img.fill()
         image = img.doCrop(size)
 
-        image.save("out.png")
-
         width = self.model.input_shape[2]
         height = self.model.input_shape[1]
         image = np.array(image)
