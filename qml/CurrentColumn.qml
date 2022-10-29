@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 Item {
     id: root
     property var needsSaving: false
+    property var cropMode: false
 
     signal save()
     signal changeMode()
@@ -138,7 +139,7 @@ Item {
             icon: "qrc:/icons/crop.svg"
             tooltip: "Switch mode (Alt)"
             color: "#303030"
-            iconColor: !root.mode ? "#aaa" : "#606060"
+            iconColor: !root.cropMode ? "#aaa" : "#606060"
             onPressed: {
                 root.changeMode()
             }

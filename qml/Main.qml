@@ -100,6 +100,7 @@ ApplicationWindow {
 
     CurrentColumn {
         id: current
+        cropMode: root.cropMode
         needsSaving: root.needsSaving
         anchors.left: layoutMode ? centerDivider.right : rightDivider.right
         anchors.right: layoutMode ? rightDivider.left : parent.right
