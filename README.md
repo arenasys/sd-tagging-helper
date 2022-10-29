@@ -6,7 +6,7 @@ A GUI to help with manual tagging and cropping. Written in Python/Qt5.
 ### Requirements
 Pillow and PyQt5
 ```
-pip install pillow pyqt5
+pip install pillow pyqt5==5.15.7
 ```
 
 ### Workings
@@ -34,9 +34,10 @@ The prompt will be comma seperated and be cleaned (replace underscores with spac
 ### DeepDanbooru
 Assumes you have a working instance of [stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with DeepDanbooru working.
 Press the interrogate button and select the `stable-diffusion-webui` folder, this will be saved for next session.
+An alternate layout was added for efficient tagging, switch to it with `Ctrl+L`
 
 ### Usage
-The minimal usage is to run `helper.py` or `start.bat`. The program will ask you for an input folder, which will be remembered for next time. A metadata and output folder will be created in the current directory, and the output dimension will be 1024x1024. For more parameters read `python help.py --help`.
+The minimal usage is to run `helper.py` or `start.bat`. The program will ask you for an input folder, which will be remembered for next time. A metadata and output folder will be created in the current directory, and the output dimension will be 1024x1024. For more parameters read `python helper.py --help`.
 
 ### Hotkeys
 ```
@@ -58,7 +59,7 @@ DOWN  - Move selected tag down
 ```
 
 ### Compiling
-If you change the GUI `.qml` files the `qml_rc.py` will need to be recompiled:
+If you change the GUI `.qml` files then `qml_rc.py` will need to be recompiled:
 ```
 pyrcc5 -o qml_rc.py qml/qml.qrc
 ```
