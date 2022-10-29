@@ -90,6 +90,11 @@ ApplicationWindow {
 
         onDeselect: {
             current.doDeselect()
+            ddb.doDeselect()
+        }
+
+        onTagAdded: {
+            current.tagAdded()
         }
     }
 
@@ -121,15 +126,26 @@ ApplicationWindow {
         }
         onDeselect: {
             tags.doDeselect()
+            ddb.doDeselect()
         }
     }
 
     DDBColumn {
+        id: ddb
         visible: layoutMode
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: leftDivider.right
         anchors.right: centerDivider.left
+
+        onDeselect: {
+            tags.doDeselect()
+            current.doDeselect()
+        }
+
+        onTagAdded: {
+            current.tagAdded()
+        }
     }
 
     Rectangle {

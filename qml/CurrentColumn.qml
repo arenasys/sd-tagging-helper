@@ -17,6 +17,10 @@ Item {
         currentTagsList.deselect()
     }
 
+    function tagAdded() {
+        currentTagsList.tagAdded()
+    }
+
     Rectangle {
         id: currentLabel
         color: "#303030"

@@ -7,6 +7,7 @@ Item {
     property var layoutMode: false
 
     signal deselect()
+    signal tagAdded()
 
     function doDeselect() {
         searchTagsList.deselect()
@@ -58,6 +59,7 @@ Item {
             onDoublePressed: {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
+                    root.tagAdded()
                 }
             }
 
@@ -170,6 +172,7 @@ Item {
             onDoublePressed: {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
+                    root.tagAdded()
                 }
             }
 
@@ -247,6 +250,7 @@ Item {
                     var tag = backend.favourites[i]
                     if(!backend.tags.includes(tag)) {
                         backend.addTag(tag)
+                        root.tagAdded()
                     }
                 }
             }
@@ -280,6 +284,7 @@ Item {
             onDoublePressed: {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
+                    root.tagAdded()
                 }
             }
        

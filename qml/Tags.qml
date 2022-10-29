@@ -12,6 +12,10 @@ Item {
     signal moved(int from, int to)
     signal contextMenu(string tag, int index)
 
+    function tagAdded() {
+        listView.positionViewAtEnd()
+    }
+
     function deselect() {
         selected = -1
     }
@@ -43,7 +47,7 @@ Item {
 
         listView.forceLayout()
 
-        listView.positionViewAtIndex(idx, ListView.Contain)
+        listView.positionViewAtIndex(idx, ListView.Visible)
     }
 
     Connections {

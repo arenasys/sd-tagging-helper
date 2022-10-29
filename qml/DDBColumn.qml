@@ -2,6 +2,15 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 
 Item {
+    id: root
+    
+    signal deselect()
+    signal tagAdded()
+
+    function doDeselect() {
+        ddbTagsList.deselect()
+    }
+
     Rectangle {
         id: ddbLabel
         color: "#303030"
@@ -44,14 +53,13 @@ Item {
             } 
 
             onPressed: {
-                searchTagsList.deselect()
-                currentTagsList.deselect()
+                root.deselect()
             }
 
             onDoublePressed: {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
-                    currentTagsList.add(tag)
+                    root.tagAdded()
                 }
             }
 
