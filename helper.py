@@ -91,7 +91,7 @@ def extract_tags(text):
     seperator = " "
     if "," in text:
         seperator = ","
-    tags = [t.strip() for t in text.split(seperator)]
+    tags = [t.strip().replace(" ", "_") for t in text.split(seperator)]
     return tags
 
 def tags_to_prompt(tags):
