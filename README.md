@@ -46,6 +46,10 @@ Ctrl + Z - Reset metadata to last saved state
 Ctrl + A - Auto position image. contain all mode
 Ctrl + D - Auto position image. fill mode
 Ctrl + E - Write current crop to out.png (for testing)
+Ctrl + C - Copy prompt into clip board
+Ctrl + V - Paste a prompt onto the current image, adding missing tags
+Ctrl + B - Paste a prompt onto the current image, deleting the previous tags
+Ctrl + L - Switch to an alternate GUI layout
 
 LEFT  - Previous image
 RIGHT - Next image
