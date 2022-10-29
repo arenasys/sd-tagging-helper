@@ -880,8 +880,11 @@ def start():
 
     # let the user choose a folder via the GUI, save it for later
     if not in_folder:
+        cfg = {}
         if os.path.isfile(CONFIG):
-            in_folder = get_json(CONFIG)["in_folder"]
+            cfg = get_json(CONFIG)
+        if "in_folder" in cfg:
+            in_folder = cfg["in_folder"]
         else:
             in_folder = str(QFileDialog.getExistingDirectory(None, "Select Input Folder"))
             put_json({"in_folder": in_folder}, CONFIG)
