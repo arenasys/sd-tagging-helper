@@ -5,6 +5,8 @@ Item {
     id: root
     property var needsSaving: false
     property var cropMode: false
+    
+    property alias selected: currentTagsList.selected
 
     signal save()
     signal changeMode()
@@ -20,6 +22,14 @@ Item {
 
     function tagAdded() {
         currentTagsList.tagAdded()
+    }
+
+    function moveUp() {
+        currentTagsList.up()
+    }
+
+    function moveDown() {
+        currentTagsList.down()
     }
 
     Rectangle {

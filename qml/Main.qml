@@ -280,54 +280,6 @@ ApplicationWindow {
         anchors.fill: parent
 
         Keys.onPressed: {
-            switch(event.key) {
-            case Qt.Key_Escape:
-                root.close()
-                event.accepted = true
-                break;
-            case Qt.Key_Delete:
-                backend.deleteTag(currentTagsList.selected)
-                currentTagsList.active = ""
-                event.accepted = true
-                break;
-            case Qt.Key_Left:
-                prev()
-                event.accepted = true
-                break;
-            case Qt.Key_Right:
-                next()
-                event.accepted = true
-                break;
-            case Qt.Key_Up:
-                currentTagsList.up()
-                event.accepted = true
-                break;
-            case Qt.Key_Down:
-                currentTagsList.down()
-                event.accepted = true
-                break;
-            case Qt.Key_W:
-                view.media.up()
-                event.accepted = true
-                break;
-            case Qt.Key_S:
-                view.media.down()
-                event.accepted = true
-                break;
-            case Qt.Key_A:
-                view.media.left()
-                event.accepted = true
-                break;
-            case Qt.Key_D:
-                view.media.right()
-                event.accepted = true
-                break;
-            case Qt.Key_Alt:
-                changeMode()
-                event.accepted = true
-                break;
-            }
-
             if((event.modifiers & Qt.ControlModifier)) {
                 switch(event.key) {
                 case Qt.Key_Z:
@@ -366,6 +318,53 @@ ApplicationWindow {
                     break;
                 case Qt.Key_L:
                     changeLayout()
+                    event.accepted = true
+                    break;
+                }
+            } else {
+                switch(event.key) {
+                case Qt.Key_Escape:
+                    root.close()
+                    event.accepted = true
+                    break;
+                case Qt.Key_Delete:
+                    backend.deleteTag(current.selected)
+                    event.accepted = true
+                    break;
+                case Qt.Key_Left:
+                    prev()
+                    event.accepted = true
+                    break;
+                case Qt.Key_Right:
+                    next()
+                    event.accepted = true
+                    break;
+                case Qt.Key_Up:
+                    current.moveUp()
+                    event.accepted = true
+                    break;
+                case Qt.Key_Down:
+                    current.moveDown()
+                    event.accepted = true
+                    break;
+                case Qt.Key_W:
+                    view.media.up()
+                    event.accepted = true
+                    break;
+                case Qt.Key_S:
+                    view.media.down()
+                    event.accepted = true
+                    break;
+                case Qt.Key_A:
+                    view.media.left()
+                    event.accepted = true
+                    break;
+                case Qt.Key_D:
+                    view.media.right()
+                    event.accepted = true
+                    break;
+                case Qt.Key_Alt:
+                    changeMode()
                     event.accepted = true
                     break;
                 }
