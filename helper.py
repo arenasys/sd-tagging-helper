@@ -17,7 +17,7 @@ import qml_rc
 CONFIG = "config.json"
 EXT = [".png", ".jpg", ".jpeg", ".webp"]
 MX_TAGS = 30
-SMILES = []
+SMILES = ["0_0","(o)_(o)","+_+","+_-","._.","<o>_<o>","<|>_<|>","=_=",">_<","3_3","6_9",">_o","@_@","^_^","o_o","u_u","x_x","|_|","||_||"]
 
 MX_FILE = 250
 MX_PATH = 4000
@@ -38,7 +38,7 @@ def get_metadata(image_file):
             tags = get_tags_gallerydl(g)
     return tags
 
-def get_images(images_path, metadata_path):
+def get_images(images_path, staging_path):
     images = []
 
     files = []
@@ -46,10 +46,10 @@ def get_images(images_path, metadata_path):
         files += glob.glob(images_path + "/*" + e)
 
     for f in files:
-        m = os.path.join(metadata_path, os.path.basename(f) + ".json")
+        m = os.path.join(staging_path, os.path.basename(f) + ".json")
 
         img = Img(f, m)
-        img.readMetadata()
+        img.readStagingData()
         if not img.ready:
             img.tags = get_metadata(f)
         images += [img]
@@ -186,9 +186,11 @@ class DDBWorker(QObject):
     resultCallback = pyqtSignal(list)
     loadedCallback = pyqtSignal()
 
-    def __init__(self, webui_folder, parent=None):
+    def __init__(self,  parent=None):
         super().__init__(parent)
         self.image = None
+
+    def add_import_paths(self, webui_folder):
         self.webui_folder = webui_folder
         self.deep_folder = os.path.join(self.webui_folder, 'models', 'deepbooru')
 
@@ -250,7 +252,6 @@ class DDBWorker(QObject):
 
         self.resultCallback.emit([t[0] for t in outputs])
 
-
 class CropWorker(QObject):
     currentCallback = pyqtSignal(int)
 
@@ -273,7 +274,7 @@ class CropWorker(QObject):
         total = len(self.images)
         print(f"STATUS: packaging {total} images. type {ext}. mode {self.mode}...")
         for i in range(total):
-            self.currentCallback.emit(i+1)
+            self.currentCallback.emit(i)
             img = self.images[i]
             out_path = ""
             name = ""
@@ -295,12 +296,12 @@ class CropWorker(QObject):
 
             img.writeCrop(out_path, self.dim)
         print(f"STATUS: done")
-        self.currentCallback.emit(0)
+        self.currentCallback.emit(-1)
 
 class Img:
-    def __init__(self, image_path, metadata_path):
+    def __init__(self, image_path, staging_path):
         self.source = image_path
-        self.metadata_path = metadata_path
+        self.staging_path = staging_path
         self.ready = False
         self.changed = False
         self.ddb = []
@@ -316,25 +317,25 @@ class Img:
         _, _, w2, _ = positionCenter(img.size[0], img.size[1], 1024)
         self.setCrop(x/1024, y/1024, w/w2)
         
-    def readMetadata(self):
-        if not os.path.isfile(self.metadata_path):
+    def readStagingData(self):
+        if not os.path.isfile(self.staging_path):
             self.tags = []
             return False
-        metadata = {}
-        with open(self.metadata_path, 'r', encoding="utf-8") as f:
-            metadata = json.load(f)
-        x,y,s = metadata["offset_x"], metadata["offset_y"], metadata["scale"]
+        data = {}
+        with open(self.staging_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        x,y,s = data["offset_x"], data["offset_y"], data["scale"]
         self.setCrop(x,y,s)
-        self.tags = metadata["tags"]
+        self.tags = data["tags"]
         return True
     
-    def writeMetadata(self):
-        metadata = {"offset_x": self.offset_x,
-                    "offset_y": self.offset_y,
-                    "scale": self.scale,
-                    "tags": self.tags}
-        with open(self.metadata_path, 'w', encoding="utf-8") as f:
-            json.dump(metadata, f)
+    def writeStagingData(self):
+        data = {"offset_x": self.offset_x,
+                "offset_y": self.offset_y,
+                "scale": self.scale,
+                "tags": self.tags}
+        with open(self.staging_path, 'w', encoding="utf-8") as f:
+            json.dump(data, f)
         self.changed = False
 
     def doCrop(self, dim):
@@ -394,14 +395,14 @@ class Img:
         self.changed = True
 
     def reset(self):
-        if not self.readMetadata():
+        if not self.readStagingData():
             self.fill()
         self.changed = False
     
     def fullReset(self):
-        self.tags = get_metadata(self.source)
+        self.tags = get_staging(self.source)
         self.fill()
-        self.writeMetadata()
+        self.writeStagingData()
         self.changed = False
 
 class Backend(QObject):
@@ -424,38 +425,41 @@ class Backend(QObject):
 
     def __init__(self, images, tags, out_folder, webui_folder, dimension, parent=None):
         super().__init__(parent)
+
+        # general state
         self._images = images
-        self._tagColors = False
+        self._dim = dimension
+        self.webui_folder = webui_folder
+
+        # global tag list
         self._tags = tags
         self._lookup = {}
         for t in tags:
             self._lookup[t[0]] = t[1]
+
+        # GUI state
+        self._tagColors = False
         self._results = []
         self._selected = 0
-        
         self._active = -1
-        self.setActive(0)
         self._current = self._images[self._active]
-        self._dim = dimension
-        self.webui_folder = webui_folder
-
-        self.search("")
-
         self._fav = []
         self._freq = {}
-        self.loadConfig()
-        self.saveConfig()
         self._showFrequent = True
 
+        # GUI init
+        self.setActive(0)
+        self.search("")        
+        self.loadConfig()
+        self.saveConfig()
+        
+        # crop worker & state
         self.cropWorker = CropWorker(self._images, out_folder, self._dim)
-        self.cropWorkerCurrent = 0
-        self.cropThread = QThread(self)
-        self.cropWorker.currentCallback.connect(self.currentCallback)
-        self.cropWorkerSetup.connect(self.cropWorker.setup)
-        self.cropWorkerStart.connect(self.cropWorker.start)
-        self.cropWorker.moveToThread(self.cropThread)
+        self.cropWorkerCurrent = -1
+        self.cropInit()
 
-        self.ddbMode = False
+        # ddb worker & state
+        self.ddbWorker = DDBWorker()
         self.ddbCurrent = -1
         self.ddbLoading = True
         self.ddbAll = False
@@ -464,10 +468,18 @@ class Backend(QObject):
         if self.ddbActive:
             self.ddbInit()
 
+        # clean up ddb thread
         parent.aboutToQuit.connect(self.closing)
     
+    def cropInit(self):
+        self.cropThread = QThread(self)
+        self.cropWorker.currentCallback.connect(self.currentCallback)
+        self.cropWorkerSetup.connect(self.cropWorker.setup)
+        self.cropWorkerStart.connect(self.cropWorker.start)
+        self.cropWorker.moveToThread(self.cropThread)
+
     def ddbInit(self):
-        self.ddbWorker = DDBWorker(self.webui_folder)
+        self.ddbWorker.add_import_paths(self.webui_folder)
         self.ddbThread = QThread(self)
         self.ddbWorker.resultCallback.connect(self.ddbResultCallback)
         self.ddbWorker.loadedCallback.connect(self.ddbLoadedCallback)
@@ -528,12 +540,12 @@ class Backend(QObject):
         return self._results
     @pyqtProperty('QString', notify=cropWorkerUpdated)
     def workerStatus(self):
-        if self.cropWorkerCurrent == 0:
+        if self.cropWorkerCurrent == -1:
             return ""
-        return os.path.basename(self._images[self.cropWorkerCurrent-1].source)
+        return os.path.basename(self._images[self.cropWorkerCurrent].source)
     @pyqtProperty(float, notify=cropWorkerUpdated)
     def workerProgress(self):
-        return self.cropWorkerCurrent/len(self._images)
+        return (self.cropWorkerCurrent+1)/len(self._images)
     @pyqtProperty('QString', notify=updated)
     def title(self):
         return f"Tagging {self._active+1} of {len(self._images)}"
@@ -624,8 +636,8 @@ class Backend(QObject):
         self.changedUpdated.emit()
 
     @pyqtSlot()
-    def saveMetadata(self):
-        self._current.writeMetadata()
+    def saveStagingData(self):
+        self._current.writeStagingData()
         self.changedUpdated.emit()
 
     @pyqtSlot()
@@ -675,7 +687,7 @@ class Backend(QObject):
     def currentCallback(self, current):
         self.cropWorkerCurrent = current
         self.cropWorkerUpdated.emit()
-        if current == 0:
+        if current == -1:
             self.cropThread.quit()
 
     @pyqtSlot(int, int)
@@ -818,6 +830,7 @@ class Backend(QObject):
     @pyqtSlot()
     def closing(self):
         if self.ddbThread:
+            print("waiting for DeepDanbooru...")
             self.ddbThread.quit()
             self.ddbThread.wait()
 
@@ -889,11 +902,10 @@ class Backend(QObject):
 
 
 def start():
-    global SMILES
     parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
     parser.add_argument('--input', type=str, help='folder to load images with optional associated tag file (eg: img.png, img.png.txt)')
     parser.add_argument('--dimension', type=int, help='dimension of output images. defaults to 1024x1024')
-    parser.add_argument('--metadata', type=str, help='folder to store metadata for each image. defaults to "metadata"')
+    parser.add_argument('--staging', type=str, help='folder to stage changes for each image. defaults to "staging"')
     parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "output"')
     parser.add_argument('--tags', type=str, help='optional tag index file. defaults to danbooru tags')
     parser.add_argument('--webui', type=str, help='optional path to stable-diffusion-webui. enables the use of deepdanbooru')
@@ -902,7 +914,7 @@ def start():
     in_folder = args.input
     dim = args.dimension
     out_folder = args.output
-    meta_folder = args.metadata
+    staging_folder = args.staging
     tags_file = args.tags
     webui_folder = args.webui
 
@@ -920,14 +932,19 @@ def start():
         exit(1)
     out_folder = os.path.abspath(out_folder)
 
-    if not meta_folder:
-        meta_folder = "metadata"
-        if not os.path.exists(meta_folder):
-            os.makedirs(meta_folder)
-    if not os.path.isdir(meta_folder):
-        print(f"ERROR: metadata folder '{metadata_folder}' does not exist!")
+    if not staging_folder:
+        staging_folder = "staging"
+
+        #migrate old default folder
+        if os.path.exists("metadata"):
+            os.rename("metadata", "staging")
+
+        if not os.path.exists(staging_folder):
+            os.makedirs(staging_folder)
+    if not os.path.isdir(staging_folder):
+        print(f"ERROR: staging folder '{staging_folder}' does not exist!")
         exit(1)
-    meta_folder = os.path.abspath(meta_folder)
+    staging_folder = os.path.abspath(staging_folder)
     
     if webui_folder and not os.path.isdir(webui_folder):
         print(f"ERROR: webui folder '{webui_folder}' does not exist!")
@@ -962,10 +979,9 @@ def start():
             put_json({"in_folder": in_folder}, CONFIG)
     in_folder = os.path.abspath(in_folder)
 
-    # load all the images/metadata
-    images = get_images(in_folder, meta_folder)
+    # load all the images & staging data
+    images = get_images(in_folder, staging_folder)
     tags = get_tags_from_csv(tags_file)
-    SMILES = [t[0] for t in get_tags_from_csv("smiles.csv")]
 
     print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 

@@ -29,7 +29,7 @@ ApplicationWindow {
         var ch = (view.crop.height)
         backend.applyCrop(fx, fy, fw, fh, cw, ch)
         view.unchange()
-        backend.saveMetadata()
+        backend.saveStagingData()
     }
 
     function next() {

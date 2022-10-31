@@ -36,9 +36,9 @@ Rectangle {
         locked: view.mode
         source: backend.source
         anchors.fill: crop
-        default_ox: backend.offset_x
-        default_oy: backend.offset_y
-        default_s: backend.scale
+        ox: backend.offset_x
+        oy: backend.offset_y
+        s: backend.scale
 
         Component.onCompleted: {
             media.sync()

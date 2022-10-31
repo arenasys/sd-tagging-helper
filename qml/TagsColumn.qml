@@ -105,6 +105,7 @@ Item {
     Connections {
         target: backend
         function onSelect(event) {
+            // handle entering the search box and switching freq/ddb mode
             if(event == 2) {
                 if(backend.selected == 1) {
                     searchBox.gainFocus()
@@ -120,7 +121,7 @@ Item {
                         if(backend.ddb.length > 0) {
                             backend.showDDB()
                         } else {
-                            backend.selectEvent(2)
+                            backend.selectEvent(3)
                         }
                     }
                 }

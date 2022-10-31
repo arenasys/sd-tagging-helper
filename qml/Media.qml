@@ -12,9 +12,9 @@ Rectangle {
     property var fw: full.width
     property var fh: full.height
 
-    property var default_ox
-    property var default_oy
-    property var default_s
+    property var ox
+    property var oy
+    property var s
 
     property var scale: 1.0
     property var max: false
@@ -34,12 +34,12 @@ Rectangle {
             full.maxHeight = view.height
             view.changed = false
         } else {
-            view.scale = default_s
+            view.scale = view.s
             full.maxWidth = Math.ceil(view.width * view.scale)
             full.maxHeight = Math.ceil(view.height * view.scale)
             full.anchors.centerIn = undefined
-            full.x = view.width * view.default_ox
-            full.y = view.width * view.default_oy
+            full.x = view.width * view.ox
+            full.y = view.width * view.oy
             view.changed = false
         }
     }
@@ -64,7 +64,7 @@ Rectangle {
         id: full
         anchors.centerIn: view 
         asynchronous: false
-        source:"file:///" + view.source
+        source: "file:///" + view.source
         smooth: implicitWidth*2 < width && implicitHeight*2 < height ? false : true
         maxWidth: view.width
         maxHeight: view.height
@@ -73,7 +73,6 @@ Rectangle {
         onStatusChanged: {
             if(status == Image.Ready) {
                 full.sync()
-                //sync()
             }
         }
     }
