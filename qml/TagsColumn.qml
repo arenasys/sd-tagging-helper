@@ -4,16 +4,10 @@ import QtGraphicalEffects 1.12
 
 Item {
     id: root
-    property var layoutMode: false
+    property var altLayoutMode: false
 
-    signal deselect()
     signal tagAdded()
-
-    function doDeselect() {
-        searchTagsList.deselect()
-        sugTagsList.deselect()
-        favTagsList.deselect()
-    }
+    signal focusRelease()
 
     Search {
         id: searchBox
@@ -22,8 +16,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         
-        onFocusReleased: {
-            keyboardFocus.forceActiveFocus()
+        onFocusRelease: {
+            root.focusRelease()
         }
 
         onTextChanged: {
@@ -32,7 +26,7 @@ Item {
         }
 
         onEnter: {
-            searchTagsList.addSelected()
+            searchTagsList.selectEnter()
             clear()
             searchTagsList.selectFirst()
         }
@@ -57,18 +51,13 @@ Item {
 
         Tags {
             id: searchTagsList
+            index: 2
             model: backend.results
             anchors.fill: parent
             moveEnabled: false
 
             function getOverlay(tag, index) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
-            }
-
-            onPressed: {
-                sugTagsList.deselect()
-                favTagsList.deselect()
-                root.deselect()
             }
 
             onDoublePressed: {
@@ -113,6 +102,32 @@ Item {
         }
     }
 
+    Connections {
+        target: backend
+        function onSelect(event) {
+            if(event == 2) {
+                if(backend.selected == 1) {
+                    searchBox.gainFocus()
+                }
+                if(!root.altLayoutMode) {
+                    if(backend.selected != 1 && searchBox.hasFocus) {
+                        root.focusRelease()
+                    }
+                    if(backend.selected == 3 && !backend.showingFrequent) {
+                        backend.showFrequent()
+                    }
+                    if(backend.selected == 5 && backend.showingFrequent) {
+                        if(backend.ddb.length > 0) {
+                            backend.showDDB()
+                        } else {
+                            backend.selectEvent(2)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Rectangle {
         id: sugLabel
         color: "#303030"
@@ -137,7 +152,7 @@ Item {
 
         DDBButton {
             id: ddbButton
-            visible: !layoutMode
+            visible: !altLayoutMode
             anchors.right: parent.right
             anchors.top: parent.top
             height: parent.height
@@ -145,7 +160,7 @@ Item {
         }
 
         IconButton {
-            visible: !layoutMode && !backend.showingFrequent
+            visible: !altLayoutMode && !backend.showingFrequent
             anchors.right: ddbButton.left
             anchors.top: parent.top
             height: parent.height
@@ -170,18 +185,19 @@ Item {
 
         Tags {
             id: sugTagsList
-            model: !layoutMode && !backend.showingFrequent ? backend.ddb : backend.frequent
+            index: !altLayoutMode && !backend.showingFrequent ? 5 : 3
+            model: !altLayoutMode && !backend.showingFrequent ? backend.ddb : backend.frequent
             anchors.fill: parent
             moveEnabled: false
 
-            function getOverlay(tag, index) {
-                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
+            onIndexChanged: {
+                if(index == backend.selected) {
+                    sugTagsList.selectFirst()
+                }
             }
 
-            onPressed: {
-                searchTagsList.deselect()
-                favTagsList.deselect()
-                root.deselect()
+            function getOverlay(tag, index) {
+                return backend.tags.includes(tag) ? "#77000000" : "#00000000"
             }
 
             onDoublePressed: {
@@ -283,17 +299,12 @@ Item {
 
         Tags {
             id: favTagsList
+            index: 4
             model: backend.favourites
             anchors.fill: parent
 
             function getOverlay(tag, index) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
-            } 
-
-            onPressed: {
-                searchTagsList.deselect()
-                sugTagsList.deselect()
-                root.deselect()
             }
 
             onDoublePressed: {

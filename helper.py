@@ -413,6 +413,8 @@ class Backend(QObject):
     favUpdated = pyqtSignal()
     suggestionsUpdated = pyqtSignal()
 
+    select = pyqtSignal(int)
+
     cropWorkerUpdated = pyqtSignal()
     cropWorkerSetup = pyqtSignal(int,int)
     cropWorkerStart = pyqtSignal()
@@ -429,6 +431,7 @@ class Backend(QObject):
         for t in tags:
             self._lookup[t[0]] = t[1]
         self._results = []
+        self._selected = 0
         
         self._active = -1
         self.setActive(0)
@@ -559,9 +562,14 @@ class Backend(QObject):
     @pyqtProperty(bool, notify=suggestionsUpdated)
     def showingFrequent(self):
         return self._showFrequent
+
     @pyqtProperty(bool, notify=updated)
     def tagColors(self):
         return self._tagColors
+
+    @pyqtProperty(int, notify=select)
+    def selected(self):
+        return self._selected
     
     @pyqtSlot()
     def toggleTagColors(self):
@@ -803,6 +811,11 @@ class Backend(QObject):
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
+    def showDDB(self):
+        self._showFrequent = False
+        self.suggestionsUpdated.emit()
+
+    @pyqtSlot()
     def closing(self):
         if self.ddbThread:
             self.ddbThread.quit()
@@ -833,6 +846,32 @@ class Backend(QObject):
         self.changedUpdated.emit()
         self.updated.emit()
 
+    @pyqtSlot(int)
+    def selectEvent(self, event):
+        # events
+        # -2 - cycle reverse
+        # -1 - up 
+        # 0  - enter
+        # 1  - down
+        # 2  - cycle forward
+        # 3  - reject (empty list)
+
+        if(event == 3): #reject in the same direct we were cycling
+            event = 2 if self._selectDir == 1 else -2
+        if(event == 2):
+            self._selectDir = 1
+            self._selected = (self._selected + 1)%6
+        if(event == -2):
+            self._selectDir = -1
+            self._selected = (self._selected + 5)%6
+            event = 2 # in the GUI event 2 is any cycle direction
+
+        self.select.emit(event)
+    
+    @pyqtSlot(int)
+    def changeSelected(self, index):
+        self._selected = index
+        self.select.emit(2)
 
     def loadConfig(self):
         j = get_json(CONFIG)

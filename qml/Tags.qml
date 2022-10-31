@@ -6,6 +6,7 @@ Item {
     property var model
     property int selected: -1
     property bool moveEnabled: true
+    property int index: 0
 
     signal pressed(string tag, int index)
     signal doublePressed(string tag, int index)
@@ -16,10 +17,6 @@ Item {
 
     function tagAdded() {
         listView.positionViewAtEnd()
-    }
-
-    function deselect() {
-        selected = -1
     }
 
     ListModel {
@@ -45,6 +42,10 @@ Item {
 
         if(listModel.count > model.length) {
             listModel.remove(model.length, listModel.count-model.length)
+        }
+
+        if(selected != -1 && selected >= model.length) {
+            selected = model.length-1
         }
 
         listView.forceLayout()
@@ -91,7 +92,7 @@ Item {
         }
     }
 
-    function addSelected() {
+    function selectEnter() {
         if(selected != -1) {
             root.doublePressed(model[selected], selected)
         }
@@ -106,7 +107,7 @@ Item {
 
     function selectDown() {
         if(selected == -1) {
-            selectFirst()
+            return;
         } else if(selected < model.length-1) {
             selected += 1
             listView.positionViewAtIndex(selected,ListView.Contain)
@@ -114,12 +115,45 @@ Item {
     }
     
     function selectUp() {
-        if(selected > 0) {
+        if(selected == -1) {
+            return;
+        } else if(selected > 0) {
             selected -= 1
             if(selected == 0) {
                 listView.positionViewAtBeginning()
             } else {
                 listView.positionViewAtIndex(selected,ListView.Contain)
+            }
+        }
+    }
+
+    Connections {
+        target: backend
+        function onSelect(event) {
+            if(backend.selected != root.index) {
+                root.selected = -1
+                return
+            }
+
+            switch(event) {
+            case -1:
+                root.selectUp()
+                break;
+            case 0:
+                root.selectEnter()
+                break;
+            case 1:
+                root.selectDown()
+                break;
+            case 2:
+                if(root.selected == -1) {
+                    if(model.length > 0) {
+                        root.selectFirst()
+                    } else {
+                        backend.selectEvent(3)
+                    }
+                }
+                break;
             }
         }
     }
@@ -144,7 +178,7 @@ Item {
 
         ScrollBar.vertical: ScrollBar {
             id: scrollBar
-            stepSize: 1/root.model.length
+            stepSize: 1/(root.model.length)
         }
 
         spacing: 3
@@ -246,6 +280,9 @@ Item {
             onPressed: {
                 root.selected = model.index
                 root.pressed(model.text, model.index)
+                if(backend.selected != root.index) {
+                    backend.changeSelected(root.index)
+                }
                 item.isDouble = !item.isDouble
             }
 

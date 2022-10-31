@@ -4,9 +4,9 @@ import QtQuick.Controls 2.15
 Item {
     id: root
     property var needsSaving: false
-    property var cropMode: false
+    property var altCropMode: false
     
-    property alias selected: currentTagsList.selected
+    property alias currentlySelected: currentTagsList.selected
 
     signal save()
     signal changeMode()
@@ -14,11 +14,6 @@ Item {
     signal focusRelease()
     signal prev()
     signal next()
-    signal deselect()
-
-    function doDeselect() {
-        currentTagsList.deselect()
-    }
 
     function tagAdded() {
         currentTagsList.tagAdded()
@@ -30,6 +25,18 @@ Item {
 
     function moveDown() {
         currentTagsList.down()
+    }
+
+    function selectUp() {
+        
+    }
+
+    function selectDown() {
+        
+    }
+
+    function selectEnter() {
+        
     }
 
     Rectangle {
@@ -95,6 +102,7 @@ Item {
 
         Tags {
             id: currentTagsList
+            index: 0
             model: backend.tags
             anchors.fill: parent
 
@@ -104,10 +112,6 @@ Item {
 
             onMoved: {
                 backend.moveTag(from, to)
-            }
-
-            onPressed: {
-                root.deselect()
             }
 
             onDoublePressed: {
@@ -153,7 +157,7 @@ Item {
             icon: "qrc:/icons/crop.svg"
             tooltip: "Switch mode (Alt)"
             color: "#303030"
-            iconColor: !root.cropMode ? "#aaa" : "#606060"
+            iconColor: !root.altCropMode ? "#aaa" : "#606060"
             onPressed: {
                 root.changeMode()
             }

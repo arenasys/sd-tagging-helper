@@ -4,11 +4,18 @@ import QtQuick.Controls 2.15
 Item {
     id: root
     
-    signal deselect()
     signal tagAdded()
 
-    function doDeselect() {
-        ddbTagsList.deselect()
+    function selectUp() {
+        ddbTagsList.selectUp()
+    }
+
+    function selectDown() {
+        ddbTagsList.selectDown()
+    }
+
+    function selectEnter() {
+        ddbTagsList.selectEnter()
     }
 
     Rectangle {
@@ -45,16 +52,13 @@ Item {
 
         Tags {
             id: ddbTagsList
+            index: 5
             model: backend.ddb
             anchors.fill: parent
 
             function getOverlay(tag, index) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
             } 
-
-            onPressed: {
-                root.deselect()
-            }
 
             onDoublePressed: {
                 if(!backend.tags.includes(tag)) {

@@ -8,16 +8,16 @@ ApplicationWindow {
     height: 600
     title: backend.title
     id: root
-    property var cropMode: true
-    property var layoutMode: false
+    property var altCropMode: true
+    property var altLayoutMode: false
     property var needsSaving: view.changed || backend.changed
 
     onWidthChanged: {
-        sync()
+        view.sync()
     }
     
     onHeightChanged: {
-        sync()
+        view.sync()
     }
 
     function save() {
@@ -46,24 +46,20 @@ ApplicationWindow {
         backend.active -= 1
     }
 
-    function sync() {
-        view.sync()
-    }
-
     function changeMode() {
         if(view.changed) {
             save()
         }
-        root.cropMode = !root.cropMode
+        root.altCropMode = !root.altCropMode
         view.sync()
     }
 
     function changeLayout() {
-        root.layoutMode = !root.layoutMode
+        root.altLayoutMode = !root.altLayoutMode
         leftDivider.setup()
         rightDivider.setup()
         centerDivider.setup()
-        sync()
+        view.sync()
     }
 
     Rectangle {
@@ -75,37 +71,36 @@ ApplicationWindow {
     View {
         id: view
         needsSaving: root.needsSaving
-        mode: root.cropMode
+        mode: root.altCropMode
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.left: layoutMode ? rightDivider.right : leftDivider.right
-        anchors.right: layoutMode ? parent.right : rightDivider.left
+        anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
+        anchors.right: altLayoutMode ? parent.right : rightDivider.left
     }
     
     TagsColumn {
         id: tags
-        layoutMode: root.layoutMode
+        altLayoutMode: root.altLayoutMode
         anchors.left: parent.left
         anchors.right: leftDivider.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
 
-        onDeselect: {
-            current.doDeselect()
-            ddb.doDeselect()
-        }
-
         onTagAdded: {
             current.tagAdded()
+        }
+
+        onFocusRelease: {
+            keyboardFocus.forceActiveFocus()
         }
     }
 
     CurrentColumn {
         id: current
-        cropMode: root.cropMode
+        altCropMode: root.altCropMode
         needsSaving: root.needsSaving
-        anchors.left: layoutMode ? centerDivider.right : rightDivider.right
-        anchors.right: layoutMode ? rightDivider.left : parent.right
+        anchors.left: altLayoutMode ? centerDivider.right : rightDivider.right
+        anchors.right: altLayoutMode ? rightDivider.left : parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
 
@@ -127,24 +122,15 @@ ApplicationWindow {
         onNext: {
             root.next()
         }
-        onDeselect: {
-            tags.doDeselect()
-            ddb.doDeselect()
-        }
     }
 
     DDBColumn {
         id: ddb
-        visible: layoutMode
+        visible: altLayoutMode
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.left: leftDivider.right
         anchors.right: centerDivider.left
-
-        onDeselect: {
-            tags.doDeselect()
-            current.doDeselect()
-        }
 
         onTagAdded: {
             current.tagAdded()
@@ -186,7 +172,7 @@ ApplicationWindow {
 
     Rectangle {
         z:10
-        visible: layoutMode
+        visible: altLayoutMode
         id: centerDivider
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -225,8 +211,8 @@ ApplicationWindow {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 5
-        property int minX: layoutMode ? 100 : 5
-        property int maxX: layoutMode ? parent.width-centerDivider.x-5 : Math.min(300, parent.width-leftDivider.x)
+        property int minX: altLayoutMode ? 100 : 5
+        property int maxX: altLayoutMode ? parent.width-centerDivider.x-5 : Math.min(300, parent.width-leftDivider.x)
         property int offset: 200
         x: parent.width - offset
         color: "#404040"
@@ -247,7 +233,7 @@ ApplicationWindow {
         }
 
         function setup() {
-            if(layoutMode) {
+            if(altLayoutMode) {
                 offset = parent.width - 450
             } else {
                 offset = 190
@@ -283,7 +269,7 @@ ApplicationWindow {
 
         Keys.onPressed: {
             event.accepted = true
-            if((event.modifiers & Qt.ControlModifier)) {
+            if(event.modifiers & Qt.ControlModifier) {
                 switch(event.key) {
                 case Qt.Key_Z:
                     backend.reset()
@@ -317,6 +303,13 @@ ApplicationWindow {
                 case Qt.Key_K:
                     backend.toggleTagColors()
                     break;
+                case Qt.Key_Tab:
+                    backend.selectEvent(-2)
+                    break;
+                case Qt.Key_Q:
+                    save()
+                    backend.ddbInterrogate()
+                    break;
                 default:
                     event.accepted = false
                     break;
@@ -327,7 +320,7 @@ ApplicationWindow {
                     root.close()
                     break;
                 case Qt.Key_Delete:
-                    backend.deleteTag(current.selected)
+                    backend.deleteTag(current.currentlySelected)
                     break;
                 case Qt.Key_Left:
                     prev()
@@ -336,10 +329,17 @@ ApplicationWindow {
                     next()
                     break;
                 case Qt.Key_Up:
-                    current.moveUp()
+                    backend.selectEvent(-1)
                     break;
                 case Qt.Key_Down:
-                    current.moveDown()
+                    backend.selectEvent(1)
+                    break;
+                case Qt.Key_Return:
+                case Qt.Key_Enter:
+                    backend.selectEvent(0)
+                    break;
+                case Qt.Key_Tab:
+                    backend.selectEvent(2)
                     break;
                 case Qt.Key_W:
                     view.media.up()
@@ -366,7 +366,7 @@ ApplicationWindow {
         Connections {
             target: backend
             function onImageUpdated() {
-                sync()
+                view.sync()
             }
         }
     }

@@ -52,11 +52,19 @@ Ctrl + V - Paste a prompt onto the current image, adding missing tags
 Ctrl + B - Paste a prompt onto the current image, deleting the previous tags
 Ctrl + L - Switch to an alternate GUI layout
 Ctrl + K - Toggle tag colors
+Ctrl + Q - Interrogate image via DeepDanbooru
 
-LEFT  - Previous image
-RIGHT - Next image
-UP    - Move selected tag up
-DOWN  - Move selected tag down
+Left  - Previous image
+Right - Next image
+Up    - Move selected tag up OR Move selection up
+Down  - Move selected tag down OR Move selection up
+
+Enter - Delete tag OR Add tag
+
+Tab        - Cycle between tag lists
+Ctrl + Tab - Reverse cycle between tag lists
+
+WASD  - Move image (alt crop mode)
 ```
 
 ### Compiling

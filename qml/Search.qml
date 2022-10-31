@@ -5,7 +5,7 @@ Item {
     property alias text: search.text
     property bool hasFocus: search.activeFocus
 
-    signal focusReleased()
+    signal focusRelease()
     signal enter()
     signal up()
     signal down()
@@ -14,6 +14,10 @@ Item {
 
     function clear() {
         search.clear()
+    }
+
+    function gainFocus() {
+        search.forceActiveFocus()
     }
 
     Rectangle {
@@ -45,7 +49,7 @@ Item {
                 event.accepted = true
                 break;
             case Qt.Key_Escape:
-                root.focusReleased()
+                root.focusRelease()
                 event.accepted = true
                 break;
             case Qt.Key_Up:
@@ -55,6 +59,14 @@ Item {
             case Qt.Key_Down:
                 root.down()
                 event.accepted = true
+                break;
+            case Qt.Key_Tab:
+                if(event.modifiers & Qt.ControlModifier) {
+                    backend.selectEvent(-2)
+                } else {
+                    backend.selectEvent(2)
+                }
+                root.focusRelease()
                 break;
             }
         }
@@ -75,6 +87,4 @@ Item {
     Keys.onPressed: {
         
     }
-
-    Keys.forwardTo: [search]
 }
