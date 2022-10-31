@@ -7,7 +7,6 @@ import json
 import time
 import argparse
 import platform
-import io
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt
@@ -273,7 +272,8 @@ class CropWorker(QObject):
             self.currentCallback.emit(i+1)
             img = self.images[i]
             out_path = ""
-            if self.mode == 0: #single image
+            name = ""
+            if img.tags and self.mode == 0: #single image
                 tags = img.tags
                 base = len(self.out_folder)
                 while True:
@@ -281,11 +281,13 @@ class CropWorker(QObject):
                     if len(out_path) < MX_PATH and len(out_path)-len(self.out_folder) < MX_FILE:
                         break
                     tags = tags[:-1]
-            elif self.mode == 1:
+            else:
                 name = os.path.basename(img.source)
                 name = os.path.splitext(name)[0]
-                img.writePrompt(os.path.join(self.out_folder, name+".txt"))
                 out_path = os.path.join(self.out_folder, name+ext)
+
+            if self.mode == 1:
+                img.writePrompt(os.path.join(self.out_folder, name+".txt"))
 
             img.writeCrop(out_path, self.dim)
         print(f"STATUS: done")
@@ -350,15 +352,10 @@ class Img:
     def writeCrop(self, crop_file, dim):
         crop = self.doCrop(dim)
 
-        buffer = io.BytesIO()
-
         if crop_file.endswith(".jpg"):
-            crop.save(buffer, 'JPEG', quality=95)
+            crop.save(crop_file, quality=95)
         else:
-            crop.save(buffer, 'PNG')
-        
-        with open(crop_file, 'wb') as f:
-            f.write(buffer.getbuffer())
+            crop.save(crop_file)
     
     def writePrompt(self, prompt_file):
         with open(prompt_file, "w", encoding="utf-8") as f:
