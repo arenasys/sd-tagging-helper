@@ -400,7 +400,7 @@ class Img:
         self.changed = False
     
     def fullReset(self):
-        self.tags = get_staging(self.source)
+        self.tags = get_metadata(self.source)
         self.fill()
         self.writeStagingData()
         self.changed = False
