@@ -96,6 +96,7 @@ def extract_tags(text):
     return tags
 
 def tags_to_prompt(tags):
+    tags = tags.copy()
     for i in range(len(tags)):
         t = tags[i]
         if not t in SMILES:
