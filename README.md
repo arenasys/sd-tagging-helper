@@ -51,6 +51,7 @@ Ctrl + C - Copy prompt into clip board
 Ctrl + V - Paste a prompt onto the current image, adding missing tags
 Ctrl + B - Paste a prompt onto the current image, deleting the previous tags
 Ctrl + L - Switch to an alternate GUI layout
+Ctrl + K - Toggle tag colors
 
 LEFT  - Previous image
 RIGHT - Next image
