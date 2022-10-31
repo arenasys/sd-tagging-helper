@@ -432,10 +432,10 @@ class Backend(QObject):
         self.webui_folder = webui_folder
 
         # global tag list
-        self._tags = tags
         self._lookup = {}
         for t in tags:
             self._lookup[t[0]] = t[1]
+        self._tags = [t[0] for t in tags]
 
         # GUI state
         self._tagColors = False
@@ -668,13 +668,13 @@ class Backend(QObject):
     def search(self, s):
         if not s:
             if len(self._tags) > MX_TAGS:
-                self._results = [t[0] for t in self._tags[0:MX_TAGS]]
+                self._results = self._tags[0:MX_TAGS]
             else:
-                self._results = [t[0] for t in self._tags]
+                self._results = self._tags
         else:
             s = s.replace(" ", "_")
             results = []
-            for t,_ in self._tags:
+            for t in self._tags:
                 if s in t:
                     results += [t]
                 if len(results) > MX_TAGS:
