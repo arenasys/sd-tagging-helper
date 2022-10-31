@@ -35,8 +35,8 @@ Rectangle {
             view.changed = false
         } else {
             view.scale = default_s
-            full.maxWidth = view.width * view.scale
-            full.maxHeight = view.height * view.scale
+            full.maxWidth = Math.ceil(view.width * view.scale)
+            full.maxHeight = Math.ceil(view.height * view.scale)
             full.anchors.centerIn = undefined
             full.x = view.width * view.default_ox
             full.y = view.width * view.default_oy

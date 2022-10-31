@@ -100,7 +100,11 @@ Item {
 
             function getOverlay(tag, index) {
                 return backend.lookup(tag) ? "#00000000" : "#33550000"
-            } 
+            }
+
+            onMoved: {
+                backend.moveTag(from, to)
+            }
 
             onPressed: {
                 root.deselect()

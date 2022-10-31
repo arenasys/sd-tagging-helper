@@ -70,7 +70,7 @@ Item {
     function move(from, to) {
         if(moveEnabled) {
             listModel.move(from, to, 1)
-            moved(from, to)
+            root.moved(from, to)
             selected = to
         }
     }

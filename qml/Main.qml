@@ -21,7 +21,14 @@ ApplicationWindow {
     }
 
     function save() {
-        backend.applyCrop((view.media.x + view.media.fx)-view.crop.x, (view.media.y + view.media.fy)-view.crop.y, view.media.fw, view.media.fh, view.crop.width, view.crop.height)
+        var fx = ((view.media.x + view.media.fx)-view.crop.x)
+        var fy = ((view.media.y + view.media.fy)-view.crop.y)
+        var fw = (view.media.fw)
+        var fh = (view.media.fh)
+
+        var cw = (view.crop.width)
+        var ch = (view.crop.height)
+        backend.applyCrop(fx, fy, fw, fh, cw, ch)
         view.unchange()
         backend.saveMetadata()
     }
@@ -280,92 +287,79 @@ ApplicationWindow {
         anchors.fill: parent
 
         Keys.onPressed: {
+            event.accepted = true
             if((event.modifiers & Qt.ControlModifier)) {
                 switch(event.key) {
                 case Qt.Key_Z:
                     backend.reset()
-                    event.accepted = true
                     break;
                 case Qt.Key_S:
                     save()
-                    event.accepted = true
                     break;
                 case Qt.Key_A:
                     backend.center()
-                    event.accepted = true
                     break;
                 case Qt.Key_D:
                     backend.fill()
-                    event.accepted = true
                     break;
                 case Qt.Key_E:
                     save()
                     backend.writeDebugCrop()
-                    event.accepted = true
                     break;
                 case Qt.Key_C:
                     save()
                     backend.copy()
-                    event.accepted = true
                     break;
                 case Qt.Key_V:
                     backend.paste(false)
-                    event.accepted = true
                     break;
                 case Qt.Key_B:
                     backend.paste(true)
-                    event.accepted = true
                     break;
                 case Qt.Key_L:
                     changeLayout()
-                    event.accepted = true
+                    break;
+                default:
+                    event.accepted = false
                     break;
                 }
             } else {
                 switch(event.key) {
                 case Qt.Key_Escape:
                     root.close()
-                    event.accepted = true
                     break;
                 case Qt.Key_Delete:
                     backend.deleteTag(current.selected)
-                    event.accepted = true
                     break;
                 case Qt.Key_Left:
                     prev()
-                    event.accepted = true
                     break;
                 case Qt.Key_Right:
                     next()
-                    event.accepted = true
                     break;
                 case Qt.Key_Up:
                     current.moveUp()
-                    event.accepted = true
                     break;
                 case Qt.Key_Down:
                     current.moveDown()
-                    event.accepted = true
                     break;
                 case Qt.Key_W:
                     view.media.up()
-                    event.accepted = true
                     break;
                 case Qt.Key_S:
                     view.media.down()
-                    event.accepted = true
                     break;
                 case Qt.Key_A:
                     view.media.left()
-                    event.accepted = true
                     break;
                 case Qt.Key_D:
                     view.media.right()
-                    event.accepted = true
                     break;
                 case Qt.Key_Alt:
                     changeMode()
-                    event.accepted = true
+                    break;
+                default:
+                    event.accepted = false
                     break;
                 }
             }
