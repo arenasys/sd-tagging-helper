@@ -27,7 +27,22 @@ Item {
         }
 
         onTextChanged: {
-            search(searchBox.text)
+            backend.search(text)
+            searchTagsList.selectFirst()
+        }
+
+        onEnter: {
+            searchTagsList.addSelected()
+            clear()
+            searchTagsList.selectFirst()
+        }
+
+        onUp: {
+            searchTagsList.selectUp()
+        }
+
+        onDown: {
+            searchTagsList.selectDown()
         }
     }
 

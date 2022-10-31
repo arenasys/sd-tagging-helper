@@ -25,7 +25,6 @@ ApplicationWindow {
         var fy = ((view.media.y + view.media.fy)-view.crop.y)
         var fw = (view.media.fw)
         var fh = (view.media.fh)
-
         var cw = (view.crop.width)
         var ch = (view.crop.height)
         backend.applyCrop(fx, fy, fw, fh, cw, ch)
@@ -45,10 +44,6 @@ ApplicationWindow {
             save()
         }
         backend.active -= 1
-    }
-
-    function search(text) {
-        backend.search(text)
     }
 
     function sync() {
@@ -318,6 +313,9 @@ ApplicationWindow {
                     break;
                 case Qt.Key_L:
                     changeLayout()
+                    break;
+                case Qt.Key_K:
+                    backend.toggleTagColors()
                     break;
                 default:
                     event.accepted = false

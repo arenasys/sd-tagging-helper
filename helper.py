@@ -154,7 +154,11 @@ def get_tags_from_csv(path):
     tags = []
     with open(path, "r", encoding="utf-8") as file:
         for line in file:
-            tags += [line.rstrip().split(",")[0]]
+            t = line.rstrip().split(",")
+            if len(t) >= 2:
+                tags += [(t[0],int(t[1]))]
+            else:
+                tags += [(t[0],0)]
     return tags
 
 def get_json(file):
@@ -419,8 +423,11 @@ class Backend(QObject):
     def __init__(self, images, tags, out_folder, webui_folder, dimension, parent=None):
         super().__init__(parent)
         self._images = images
+        self._tagColors = False
         self._tags = tags
-        self._lookup = set(tags)
+        self._lookup = {}
+        for t in tags:
+            self._lookup[t[0]] = t[1]
         self._results = []
         
         self._active = -1
@@ -552,11 +559,25 @@ class Backend(QObject):
     @pyqtProperty(bool, notify=suggestionsUpdated)
     def showingFrequent(self):
         return self._showFrequent
-
+    @pyqtProperty(bool, notify=updated)
+    def tagColors(self):
+        return self._tagColors
+    
+    @pyqtSlot()
+    def toggleTagColors(self):
+        self._tagColors = not self._tagColors
+        self.updated.emit()
+        self.saveConfig()
 
     @pyqtSlot('QString', result=bool)
     def lookup(self, tag):
         return tag in self._lookup
+
+    @pyqtSlot('QString', result=int)
+    def tagType(self, tag):
+        if tag in self._lookup:
+            return self._lookup[tag]
+        return 2
 
     @pyqtSlot('QString')
     def addTag(self, tag):
@@ -627,17 +648,19 @@ class Backend(QObject):
     def search(self, s):
         if not s:
             if len(self._tags) > MX_TAGS:
-                self._results = self._tags[0:MX_TAGS]
-            self._results = self._tags
-        s = s.replace(" ", "_")
-        results = []
-        for t in self._tags:
-            if s in t:
-                results += [t]
-            if len(results) > MX_TAGS:
-                break
+                self._results = [t[0] for t in self._tags[0:MX_TAGS]]
+            else:
+                self._results = [t[0] for t in self._tags]
+        else:
+            s = s.replace(" ", "_")
+            results = []
+            for t,_ in self._tags:
+                if s in t:
+                    results += [t]
+                if len(results) > MX_TAGS:
+                    break
 
-        self._results = results
+            self._results = results
         self.searchUpdated.emit()
 
     @pyqtSlot(int)
@@ -819,9 +842,11 @@ class Backend(QObject):
             self._freq = j["freq"]
         if 'webui' in j and self.webui_folder == None:
             self.webui_folder = j["webui"]
+        if 'colors' in j:
+            self._tagColors = j["colors"]
 
     def saveConfig(self):
-        put_json({"fav": self._fav, "freq": self._freq, "webui": self.webui_folder}, CONFIG)
+        put_json({"fav": self._fav, "freq": self._freq, "webui": self.webui_folder, "colors": self._tagColors}, CONFIG)
 
 
 def start():
@@ -901,7 +926,7 @@ def start():
     # load all the images/metadata
     images = get_images(in_folder, meta_folder)
     tags = get_tags_from_csv(tags_file)
-    SMILES = get_tags_from_csv("smiles.csv")
+    SMILES = [t[0] for t in get_tags_from_csv("smiles.csv")]
 
     print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 

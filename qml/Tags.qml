@@ -12,6 +12,8 @@ Item {
     signal moved(int from, int to)
     signal contextMenu(string tag, int index)
 
+    property var tagColor: ["#0879f8", "#c00004", "#fff", "#c10cad", "#00ab2c", "#fd9200"]
+
     function tagAdded() {
         listView.positionViewAtEnd()
     }
@@ -86,6 +88,39 @@ Item {
         if(selected != -1 && selected < model.length-1) {
             move(selected, selected+1)
             listView.positionViewAtIndex(selected,ListView.Contain)
+        }
+    }
+
+    function addSelected() {
+        if(selected != -1) {
+            root.doublePressed(model[selected], selected)
+        }
+    }
+
+    function selectFirst() {
+        if(model.length > 0) {
+            selected = 0
+            listView.positionViewAtBeginning()
+        }
+    }
+
+    function selectDown() {
+        if(selected == -1) {
+            selectFirst()
+        } else if(selected < model.length-1) {
+            selected += 1
+            listView.positionViewAtIndex(selected,ListView.Contain)
+        }
+    }
+    
+    function selectUp() {
+        if(selected > 0) {
+            selected -= 1
+            if(selected == 0) {
+                listView.positionViewAtBeginning()
+            } else {
+                listView.positionViewAtIndex(selected,ListView.Contain)
+            }
         }
     }
 
@@ -190,7 +225,7 @@ Item {
                     elide: Text.ElideRight
                     text: model.text
                     padding: 5
-                    color: "white"
+                    color: backend.tagColors ? Qt.lighter(root.tagColor[backend.tagType(model.text)], 1.2) : "white"
                     verticalAlignment: Text.AlignVCenter
                 }
 
