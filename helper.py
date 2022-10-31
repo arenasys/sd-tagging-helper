@@ -7,6 +7,7 @@ import json
 import time
 import argparse
 import platform
+import io
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt
@@ -349,10 +350,15 @@ class Img:
     def writeCrop(self, crop_file, dim):
         crop = self.doCrop(dim)
 
+        buffer = io.BytesIO()
+
         if crop_file.endswith(".jpg"):
-            crop.save(crop_file, quality=95)
+            crop.save(buffer, 'JPEG', quality=95)
         else:
-            crop.save(crop_file)
+            crop.save(buffer, 'PNG')
+        
+        with open(crop_file, 'wb') as f:
+            f.write(buffer.getbuffer())
     
     def writePrompt(self, prompt_file):
         with open(prompt_file, "w", encoding="utf-8") as f:
