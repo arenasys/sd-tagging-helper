@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtGraphicalEffects 1.12
+import QtQuick.Layouts 1.15
 
 ApplicationWindow {
     visible: true
@@ -74,14 +75,60 @@ ApplicationWindow {
         anchors.fill: parent
     }
 
-    View {
-        id: view
-        needsSaving: root.needsSaving
-        mode: root.altCropMode
-        anchors.top: parent.top
-        anchors.bottom: viewDivider.top
+    TabMenu {
         anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
         anchors.right: altLayoutMode ? parent.right : rightDivider.left
+        anchors.top: parent.top
+        id: bar
+        width: parent.width
+        contentHeight: 30
+        TabItem {
+            text: "Position"
+            selected: bar.currentIndex == 0
+        }
+        TabItem {
+            text: "Output"
+            selected: bar.currentIndex == 1
+        }
+    }
+
+    Rectangle {
+        id: barDivider
+        height: 5
+        color: "#404040"
+        clip: true
+        anchors.left: bar.left
+        anchors.right: bar.right
+        anchors.top: bar.bottom
+    }
+
+    StackLayout {
+        anchors.top: barDivider.bottom
+        anchors.bottom: viewDivider.top
+        anchors.left: bar.left
+        anchors.right: bar.right
+
+        currentIndex: bar.currentIndex
+        Item {
+            clip: true
+            View {
+                id: view
+                needsSaving: root.needsSaving
+                mode: root.altCropMode
+                anchors.fill: parent
+            }
+        }
+        Item {
+            clip: true
+            Output {
+                id: output
+                anchors.fill: parent
+            }
+        }
+
+        onCurrentIndexChanged: {
+            keyboardFocus.forceActiveFocus()
+        }
     }
 
     Rectangle {
@@ -89,8 +136,8 @@ ApplicationWindow {
         height: 5
         color: "#404040"
         clip: true
-        anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
-        anchors.right: altLayoutMode ? parent.right : rightDivider.left
+        anchors.left: bar.left
+        anchors.right: bar.right
         anchors.bottom: viewControls.top
     }
 
@@ -99,8 +146,8 @@ ApplicationWindow {
         height: 30
         color: "#303030"
         clip: true
-        anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
-        anchors.right: altLayoutMode ? parent.right : rightDivider.left
+        anchors.left: bar.left
+        anchors.right: bar.right
         anchors.bottom: parent.bottom
 
         IconButton {

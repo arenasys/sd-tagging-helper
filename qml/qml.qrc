@@ -21,6 +21,9 @@
         <file>PackageWindow.qml</file>
         <file>DDBButton.qml</file>
         <file>Slide.qml</file>
+        <file>TabMenu.qml</file>
+        <file>TabItem.qml</file>
+        <file>Output.qml</file>
 
         <file>icons/cross.svg</file>
         <file>icons/plus.svg</file>

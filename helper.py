@@ -8,11 +8,15 @@ import time
 import argparse
 import platform
 import shutil
-from PIL import Image, ImageDraw, ImageOps, ImageFilter
+import requests
 
+from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
+from PyQt5.QtGui import QImage
 from PyQt5.QtQml import QQmlApplicationEngine
 from PyQt5.QtWidgets import QFileDialog, QApplication
+from PyQt5.QtQuick import QQuickImageProvider
+
 import qml_rc
 
 CONFIG = "config.json"
@@ -183,6 +187,21 @@ def to_filename(base, tags):
     illegal = '<>:"/\\|?*'
     name = ''.join([c for c in tags_to_prompt(tags) if not c in illegal])
     return os.path.join(base, name)
+
+def download(url, filename):
+    resp = requests.get(url, stream=True)
+    total = int(resp.headers.get('content-length', 0))
+
+    with open(filename, 'wb') as file, tqdm(
+        desc=filename,
+        total=total,
+        unit='iB',
+        unit_scale=True,
+        unit_divisor=1024,
+    ) as bar:
+        for data in resp.iter_content(chunk_size=1024):
+            size = file.write(data)
+            bar.update(size)
 
 class DDBWorker(QObject):
     resultCallback = pyqtSignal(list)
@@ -424,7 +443,7 @@ class Img:
     def writeCrop(self, crop_file, dim):
         if not self.ready:
             self.fill()
-            
+
         crop = self.doCrop(dim)
 
         if crop_file.endswith(".jpg"):
@@ -517,6 +536,18 @@ class Img:
         self.fill()
         self.writeStagingData()
 
+class PreviewProvider(QQuickImageProvider):
+    def __init__(self):
+        super(PreviewProvider, self).__init__(QQuickImageProvider.Image)
+        self.preview = None
+    
+    def setPreview(self, preview):
+        self.preview = preview
+
+    def requestImage(self, p_str, size):
+        return self.preview, self.preview.size()
+
+
 class Backend(QObject):
     updated = pyqtSignal()
     changedUpdated = pyqtSignal()
@@ -559,6 +590,9 @@ class Backend(QObject):
         self.fav = []
         self.freq = {}
         self.showFrequent = True
+        self.previewProvider = PreviewProvider()
+        self.previewCount = 0
+        self.previewPrompt = ""
 
         # GUI init
         self.setActive(0)
@@ -611,6 +645,8 @@ class Backend(QObject):
         # so only do it on demand
         if not self.current.ready:
             self.current.prepare()
+        
+        self.setPreview()
 
         if not self.current.ddb:
             self.showFrequent = True
@@ -644,6 +680,14 @@ class Backend(QObject):
     @pyqtProperty(int, notify=updated)
     def dimension(self):
         return self.dim
+
+    @pyqtProperty('QString', notify=imageUpdated)
+    def preview(self):
+        return f"image://preview/{self.previewCount}.png"
+    
+    @pyqtProperty('QString', notify=tagsUpdated)
+    def prompt(self):
+        return self.current.buildPrompt()
     
     @pyqtProperty(list, notify=tagsUpdated)
     def tags(self):
@@ -752,6 +796,9 @@ class Backend(QObject):
     def applyCrop(self, fx, fy, fw, fh, cw, ch):
         x, y, w, h = positionCenter(fw, fh, cw)
         self.current.setCrop(fx/cw, fy/cw, fw/w)
+
+        self.setPreview()
+
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
@@ -1041,7 +1088,12 @@ class Backend(QObject):
             self.ddbThread.wait()
 
     ### Misc
-        
+    
+    def setPreview(self):
+        img = self.current.doCrop(self.dim)
+        self.previewProvider.setPreview(ImageQt.ImageQt(img))
+        self.previewCount += 1
+
     def cropInit(self):
         self.cropThread = QThread(self)
         self.cropWorker.progressCallback.connect(self.cropProgressCallback)
@@ -1167,6 +1219,7 @@ def start():
     backend = Backend(images, tags, out_folder, webui_folder, dim, parent=app)
 
     engine = QQmlApplicationEngine()
+    engine.addImageProvider("preview", backend.previewProvider)
     engine.quit.connect(app.quit)
     ctx = engine.rootContext()
     ctx.setContextProperty("backend", backend)
