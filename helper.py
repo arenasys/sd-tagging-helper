@@ -223,7 +223,8 @@ class DDBWorker(QObject):
         if(ready):
             img.setCrop(x,y,s)
         else:
-            img.fill()
+            img.prepare()
+        
         image = img.doCrop(size)
 
         width = self.model.input_shape[2]
@@ -367,24 +368,28 @@ class Img:
         self.ready = False # ready to be displayed (needs crop offsets/scale)
         self.changed = False
         self.ddb = []
+        self.w, self.h = None, None
 
     def center(self):
-        img = Image.open(self.source).convert('RGB')
-        self.w, self.h = img.size[0], img.size[1]
-        x, y, w, h = positionCenter(img.size[0], img.size[1], 1024)
+        if not self.w or not self.h:
+            with Image.open(self.source) as img:
+                self.w, self.h = img.size
+        x, y, w, h = positionCenter(self.w, self.h, 1024)
         self.setCrop(x/1024, y/1024, 1.0)
 
     def fill(self):
-        img = Image.open(self.source).convert('RGB')
-        self.w, self.h = img.size[0], img.size[1]
-        x, y, w, h = positionFill(img.size[0], img.size[1], 1024)
-        _, _, w2, _ = positionCenter(img.size[0], img.size[1], 1024)
+        if not self.w or not self.h:
+            with Image.open(self.source) as img:
+                self.w, self.h = img.size
+        x, y, w, h = positionFill(self.w, self.h, 1024)
+        _, _, w2, _ = positionCenter(self.w, self.h, 1024)
         self.setCrop(x/1024, y/1024, w/w2)
         
     def readStagingData(self):
         if not os.path.isfile(self.staging_path):
             self.tags = []
             return False
+
         data = {}
         with open(self.staging_path, 'r', encoding="utf-8") as f:
             data = json.load(f)
@@ -407,9 +412,6 @@ class Img:
         self.w, self.h = img.size[0], img.size[1]
         x, y, w, h = positionCenter(img.size[0], img.size[1], dim)
 
-        if not self.ready:
-            self.setCrop(x/dim, y/dim, 1.0)
-
         s = (w/img.size[0]) * self.scale
         img = img.resize((int(img.size[0] * s),int(img.size[1] * s)))
         crop = Image.new(mode='RGB',size=(dim,dim))
@@ -420,6 +422,9 @@ class Img:
         return tags_to_prompt(self.tags)
 
     def writeCrop(self, crop_file, dim):
+        if not self.ready:
+            self.fill()
+            
         crop = self.doCrop(dim)
 
         if crop_file.endswith(".jpg"):
@@ -429,7 +434,8 @@ class Img:
 
     def writeScale(self, scale_file, dim):
         img = Image.open(self.source).convert('RGB')
-        w, h = img.size[0], img.size[1]
+        self.w, self.h = img.size[0], img.size[1]
+
         s = dim/min(w, h)
         if w > h:
             w = w * s
@@ -454,6 +460,7 @@ class Img:
             return
         
         img = Image.open(self.source).convert('RGB')
+        self.w, self.h = img.size[0], img.size[1]
 
         if out_file.endswith(".jpg"):
             img.save(out_file, quality=95)
@@ -505,6 +512,10 @@ class Img:
         self.fill()
         self.writeStagingData()
         self.changed = False
+
+    def prepare(self):
+        self.fill()
+        self.writeStagingData()
 
 class Backend(QObject):
     updated = pyqtSignal()
@@ -599,7 +610,7 @@ class Backend(QObject):
         # (requires loading the image)
         # so only do it on demand
         if not self.current.ready:
-            self.current.fill()
+            self.current.prepare()
 
         if not self.current.ddb:
             self.showFrequent = True
