@@ -414,6 +414,12 @@ ApplicationWindow {
                 case Qt.Key_1:
                     tags.addFavourites()
                     break;
+                case Qt.Key_R:
+                    backend.cleanTags()
+                    break
+                case Qt.Key_T:
+                    backend.sortTags()
+                    break
                 default:
                     event.accepted = false
                     break;
