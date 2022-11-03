@@ -32,6 +32,12 @@ ApplicationWindow {
         backend.saveStagingData()
     }
 
+    function sourceDimension() {
+        var w = Math.floor(view.media.w * (view.crop.width/view.media.fw))
+        var h = Math.floor(view.media.h * (view.crop.height/view.media.fh))
+        return Math.max(w,h)
+    }
+
     function next() {
         if(needsSaving) {
             save()
@@ -73,9 +79,57 @@ ApplicationWindow {
         needsSaving: root.needsSaving
         mode: root.altCropMode
         anchors.top: parent.top
-        anchors.bottom: parent.bottom
+        anchors.bottom: viewDivider.top
         anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
         anchors.right: altLayoutMode ? parent.right : rightDivider.left
+    }
+
+    Rectangle {
+        id: viewDivider
+        height: 5
+        color: "#404040"
+        clip: true
+        anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
+        anchors.right: altLayoutMode ? parent.right : rightDivider.left
+        anchors.bottom: viewControls.top
+    }
+
+    Rectangle {
+        id: viewControls
+        height: 30
+        color: "#303030"
+        clip: true
+        anchors.left: altLayoutMode ? rightDivider.right : leftDivider.right
+        anchors.right: altLayoutMode ? parent.right : rightDivider.left
+        anchors.bottom: parent.bottom
+
+        IconButton {
+            height: parent.height
+            anchors.left: parent.left
+            anchors.top: parent.top
+            width: height
+            icon: "qrc:/icons/crop.svg"
+            tooltip: "Switch mode (Alt)"
+            color: "#303030"
+            iconColor: !altCropMode ? "#aaa" : "#606060"
+            onPressed: {
+                changeMode()
+            }
+        }
+
+        Row {
+            width: Math.min(parent.width, implicitWidth)
+            anchors.right: parent.right
+            Text {
+                text: sourceDimension() + " ➜ " + backend.dimension
+                rightPadding: 10
+                font.pixelSize: 15
+                font.bold: true
+                height: 30
+                color: "#c0c0c0"//sourceDimension() >= backend.dimension ? "green" : "#ba0000"
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
     }
     
     TagsColumn {
@@ -304,11 +358,14 @@ ApplicationWindow {
                     backend.toggleTagColors()
                     break;
                 case Qt.Key_Tab:
-                    backend.selectEvent(-2)
+                    backend.doListEvent(-2)
                     break;
                 case Qt.Key_Q:
                     save()
                     backend.ddbInterrogate()
+                    break;
+                case Qt.Key_1:
+                    tags.addFavourites()
                     break;
                 default:
                     event.accepted = false
@@ -329,17 +386,17 @@ ApplicationWindow {
                     next()
                     break;
                 case Qt.Key_Up:
-                    backend.selectEvent(-1)
+                    backend.doListEvent(-1)
                     break;
                 case Qt.Key_Down:
-                    backend.selectEvent(1)
+                    backend.doListEvent(1)
                     break;
                 case Qt.Key_Return:
                 case Qt.Key_Enter:
-                    backend.selectEvent(0)
+                    backend.doListEvent(0)
                     break;
                 case Qt.Key_Tab:
-                    backend.selectEvent(2)
+                    backend.doListEvent(2)
                     break;
                 case Qt.Key_W:
                     view.media.up()

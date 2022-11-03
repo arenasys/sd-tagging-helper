@@ -78,14 +78,14 @@ Item {
         }
     }
 
-    function up() {
+    function moveUp() {
         if(selected > 0) {
             move(selected, selected-1)
             listView.positionViewAtIndex(selected,ListView.Contain)
         }
     }
 
-    function down() {
+    function moveDown() {
         if(selected != -1 && selected < model.length-1) {
             move(selected, selected+1)
             listView.positionViewAtIndex(selected,ListView.Contain)
@@ -129,28 +129,34 @@ Item {
 
     Connections {
         target: backend
-        function onSelect(event) {
-            if(backend.selected != root.index) {
+        function onListEvent(event) {
+            if(backend.activeList != root.index) {
                 root.selected = -1
                 return
             }
 
             switch(event) {
             case -1:
-                root.selectUp()
+                if(root.index == 0)
+                    root.moveUp()
+                else
+                    root.selectUp()
                 break;
             case 0:
                 root.selectEnter()
                 break;
             case 1:
-                root.selectDown()
+                if(root.index == 0)
+                    root.moveDown()
+                else
+                    root.selectDown()
                 break;
             case 2:
                 if(root.selected == -1) {
                     if(model.length > 0) {
                         root.selectFirst()
                     } else {
-                        backend.selectEvent(3)
+                        backend.doListEvent(3)
                     }
                 }
                 break;
@@ -175,6 +181,7 @@ Item {
         id: listView
         model: listModel
         interactive: false
+        signal hovered(int index)
 
         ScrollBar.vertical: ScrollBar {
             id: scrollBar
@@ -191,7 +198,6 @@ Item {
 
         delegate: DraggableItem {
             id: item
-            property bool isDouble: false
 
             Item {
                 height: 20
@@ -218,11 +224,11 @@ Item {
                     anchors.top: textLabel.top
                     anchors.bottom: textLabel.bottom
                     radius: 5
-                    color: item.hovered || favButton.hovered ? "#353535" : "#2a2a2a"
+                    color: favButton.visible ? "#353535" : "#2a2a2a"
                 }
 
                 Rectangle {
-                    visible: item.hovered || favButton.hovered
+                    visible: favButton.visible
                     id: favBg
                     anchors.left: bg.right
                     anchors.leftMargin: 5
@@ -236,7 +242,7 @@ Item {
                 IconButton {
                     z: 0
                     id: favButton
-                    visible: favBg.visible
+                    visible: false
                     anchors.centerIn: favBg
                     height: parent.height*1.3
                     width: height
@@ -245,8 +251,30 @@ Item {
                     color: "transparent"
                     iconColor: favourited ? "#bd9d35" : "#606060"
                     iconHoverColor: favourited ? "#a98719" : "#fff"
+
                     onPressed: {
                         backend.toggleFavourite(model.text)
+                    }
+
+                    onEntered: {
+                        favButton.visible = true
+                    }
+
+                    onExited: {
+                        favButton.visible = false
+                    }
+
+                    // favButton will miss mouse exit events when scrolling :/
+                    Connections {
+                        target: item
+
+                        function onEntered() {
+                            favButton.visible = true
+                        }
+
+                        function onExited() {
+                            favButton.visible = false
+                        }
                     }
                 }
 
@@ -259,7 +287,7 @@ Item {
                     elide: Text.ElideRight
                     text: model.text
                     padding: 5
-                    color: backend.tagColors ? Qt.lighter(root.tagColor[backend.tagType(model.text)], 1.2) : "white"
+                    color: backend.showingTagColors ? Qt.lighter(root.tagColor[backend.tagType(model.text)], 1.2) : "white"
                     verticalAlignment: Text.AlignVCenter
                 }
 
@@ -280,10 +308,9 @@ Item {
             onPressed: {
                 root.selected = model.index
                 root.pressed(model.text, model.index)
-                if(backend.selected != root.index) {
-                    backend.changeSelected(root.index)
+                if(backend.activeList != root.index) {
+                    backend.changeList(root.index)
                 }
-                item.isDouble = !item.isDouble
             }
 
             onContextMenu: {
@@ -292,12 +319,6 @@ Item {
 
             onDoublePressed: {
                 root.doublePressed(model.text, model.index)
-            }
-
-            onHoveredChanged: {
-                if(!item.hovered) {
-                    item.isDouble = false
-                }
             }
         }
     }

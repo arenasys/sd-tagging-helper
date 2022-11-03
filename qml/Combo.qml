@@ -65,7 +65,7 @@ ComboBox {
     background: Rectangle {
         implicitWidth: 120
         implicitHeight: 30
-        color: "#242424"
+        color: control.enabled ? "#242424" : "#2c2c2c"
     }
 
     popup: Popup {

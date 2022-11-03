@@ -20,6 +20,7 @@
         <file>View.qml</file>
         <file>PackageWindow.qml</file>
         <file>DDBButton.qml</file>
+        <file>Slide.qml</file>
 
         <file>icons/cross.svg</file>
         <file>icons/plus.svg</file>

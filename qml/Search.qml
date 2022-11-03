@@ -62,9 +62,9 @@ Item {
                 break;
             case Qt.Key_Tab:
                 if(event.modifiers & Qt.ControlModifier) {
-                    backend.selectEvent(-2)
+                    backend.doListEvent(-2)
                 } else {
-                    backend.selectEvent(2)
+                    backend.doListEvent(2)
                 }
                 root.focusRelease()
                 break;

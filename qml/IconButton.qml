@@ -12,17 +12,16 @@ Rectangle {
     property bool working: false
     property var inset: 10
     property var tooltip: ""
-    property var hovered: mouse.containsMouse
+    property var hovered: false
     
     property bool glowing: false
     property var glowColor: "white"
     property var glowStrength: 3
     
-
     signal pressed();
     signal contextMenu();
-    signal enter();
-    signal leave();
+    signal entered();
+    signal exited();
 
     MouseArea {
         anchors.fill: parent
@@ -41,12 +40,12 @@ Rectangle {
             
         }
 
-        onHoveredChanged: {
-            if(containsMouse) {
-                button.enter()
-            } else {
-                button.leave()
-            }
+        onEntered: {
+            button.entered()
+        }
+
+        onExited: {
+            button.exited()
         }
     }
 

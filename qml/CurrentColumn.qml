@@ -19,26 +19,6 @@ Item {
         currentTagsList.tagAdded()
     }
 
-    function moveUp() {
-        currentTagsList.up()
-    }
-
-    function moveDown() {
-        currentTagsList.down()
-    }
-
-    function selectUp() {
-        
-    }
-
-    function selectDown() {
-        
-    }
-
-    function selectEnter() {
-        
-    }
-
     Rectangle {
         id: currentLabel
         color: "#303030"
@@ -107,7 +87,7 @@ Item {
             anchors.fill: parent
 
             function getOverlay(tag, index) {
-                return backend.lookup(tag) ? "#00000000" : "#33550000"
+                return backend.tagExists(tag) ? "#00000000" : "#33550000"
             }
 
             onMoved: {
@@ -145,21 +125,6 @@ Item {
             working: packageWindow.visible
             onPressed: {
                 root.packageWindowOpen()
-            }
-        }
-
-        IconButton {
-            height: controls.height
-            anchors.left: packageButton.right
-            anchors.leftMargin: 0
-            anchors.top: controls.top
-            width: height
-            icon: "qrc:/icons/crop.svg"
-            tooltip: "Switch mode (Alt)"
-            color: "#303030"
-            iconColor: !root.altCropMode ? "#aaa" : "#606060"
-            onPressed: {
-                root.changeMode()
             }
         }
 

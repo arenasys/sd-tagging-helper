@@ -12,6 +12,9 @@ Rectangle {
     property var fw: full.width
     property var fh: full.height
 
+    property alias w: full.implicitWidth
+    property alias h: full.implicitHeight
+
     property var ox
     property var oy
     property var s

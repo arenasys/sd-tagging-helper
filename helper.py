@@ -7,9 +7,10 @@ import json
 import time
 import argparse
 import platform
+import shutil
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
 from PyQt5.QtQml import QQmlApplicationEngine
 from PyQt5.QtWidgets import QFileDialog, QApplication
 import qml_rc
@@ -178,10 +179,10 @@ def put_json(j, file, append=True):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(j, f)
 
-def to_filename(base, tags, ext):
+def to_filename(base, tags):
     illegal = '<>:"/\\|?*'
     name = ''.join([c for c in tags_to_prompt(tags) if not c in illegal])
-    return os.path.join(base, name+ext)
+    return os.path.join(base, name)
 
 class DDBWorker(QObject):
     resultCallback = pyqtSignal(list)
@@ -253,67 +254,129 @@ class DDBWorker(QObject):
 
         self.resultCallback.emit([t[0] for t in outputs])
 
+class CropRunnableSignals(QObject):
+    completed = pyqtSignal(int, 'QString')
+
+class CropRunnable(QRunnable):
+    def __init__(self, index, img, dim, out_folder, img_mode, prompt_mode, ext_mode):
+        super(CropRunnable, self).__init__()
+        self.index = index
+        self.img = img
+        self.dim = dim
+        self.out_folder = out_folder
+        self.img_mode = img_mode
+        self.prompt_mode = prompt_mode
+        self.ext_mode = ext_mode
+        self.signals = CropRunnableSignals()
+
+    @pyqtSlot()
+    def run(self):
+        source_name = os.path.basename(self.img.source)
+
+        img_path = os.path.join(self.out_folder, os.path.splitext(source_name)[0])
+
+        if self.prompt_mode == 0:
+            self.img.writePrompt(img_path+".txt")
+        elif self.prompt_mode == 1:
+            self.img.writePromptJson(img_path+".json")
+        elif self.prompt_mode == 2 and self.img.tags:
+            tags = self.img.tags.copy()
+            while True:
+                img_path = to_filename(self.out_folder, tags)
+                if len(img_path) < MX_PATH and len(img_path)-len(self.out_folder) < MX_FILE:
+                    break
+                tags = tags[:-1]
+
+        if self.img_mode != 3:
+            img_ext = ""
+            if self.ext_mode == 0:
+                img_ext = ".jpg"
+            elif self.ext_mode == 1:
+                img_ext = ".png"
+            elif self.ext_mode == 2:
+                img_ext = os.path.splitext(self.img.source)[1]
+
+            img_file = img_path+img_ext
+
+            if self.img_mode == 0:
+                self.img.writeCrop(img_file, self.dim)
+            elif self.img_mode == 1:
+                self.img.writeScale(img_file, self.dim)
+            elif self.img_mode == 2:
+                self.img.writeOriginal(img_file)
+
+        self.signals.completed.emit(self.index, source_name)
+
 class CropWorker(QObject):
-    currentCallback = pyqtSignal(int)
+    progressCallback = pyqtSignal(float, 'QString')
 
     def __init__(self, images, out_folder, dimension, parent=None):
         super().__init__(parent)
         self.images = images
         self.out_folder = out_folder
         self.dim = dimension
-        self.mode = 0
-        self.ext = 0
+        self.image_mode = 0
+        self.ext_mode = 0
+        self.prompt_mode = 0
+        self.thread_count = 0
+        self.pool = QThreadPool()
 
-    @pyqtSlot(int, int)
-    def setup(self, mode, ext):
-        self.mode = mode
-        self.ext = ext
+    @pyqtSlot(int, int, int, int)
+    def setup(self, img_mode, ext_mode, prompt_mode, thread_count):
+        self.img_mode = img_mode
+        self.ext_mode = ext_mode
+        self.prompt_mode = prompt_mode
+        self.thread_count = thread_count
 
     @pyqtSlot()
     def start(self):
-        ext = [".jpg", ".png"][self.ext]
-        total = len(self.images)
-        print(f"STATUS: packaging {total} images. type {ext}. mode {self.mode}...")
-        for i in range(total):
-            self.currentCallback.emit(i)
-            img = self.images[i]
-            out_path = ""
-            name = ""
-            if img.tags and self.mode == 0: #single image
-                tags = img.tags
-                base = len(self.out_folder)
-                while True:
-                    out_path = to_filename(self.out_folder, tags, ext)
-                    if len(out_path) < MX_PATH and len(out_path)-len(self.out_folder) < MX_FILE:
-                        break
-                    tags = tags[:-1]
-            else:
-                name = os.path.basename(img.source)
-                name = os.path.splitext(name)[0]
-                out_path = os.path.join(self.out_folder, name+ext)
+        self.progress = 0
+        self.total = len(self.images)
+        self.finishTotal = self.total
+        
+        self.progressCallback.emit(0.0, "Starting...")
 
-            if self.mode == 1:
-                img.writePrompt(os.path.join(self.out_folder, name+".txt"))
+        self.pool.setMaxThreadCount(self.thread_count)
+        
+        args = (self.dim, self.out_folder, self.img_mode, self.prompt_mode, self.ext_mode)
+        runnables = [CropRunnable(i, self.images[i], *args) for i in range(len(self.images))]
 
-            img.writeCrop(out_path, self.dim)
-        print(f"STATUS: done")
-        self.currentCallback.emit(-1)
+        for r in runnables:
+            r.signals.completed.connect(self.runnableCompleted)
+            r.setAutoDelete(True)
+            self.pool.start(r)
+
+    @pyqtSlot()
+    def stop(self):
+        self.pool.clear()
+        self.finishTotal = self.progress + self.pool.activeThreadCount()
+
+    @pyqtSlot(int, 'QString')
+    def runnableCompleted(self, index, name):
+        self.progress += 1
+        self.progressCallback.emit(self.progress/self.total, name)
+
+        if self.progress == self.finishTotal:
+            self.progressCallback.emit(-1.0, "Done")
+
 
 class Img:
     def __init__(self, image_path, staging_path):
         self.source = image_path
         self.staging_path = staging_path
-        self.ready = False
+        self.ready = False # ready to be displayed (needs crop offsets/scale)
         self.changed = False
         self.ddb = []
 
     def center(self):
         img = Image.open(self.source).convert('RGB')
+        self.w, self.h = img.size[0], img.size[1]
         x, y, w, h = positionCenter(img.size[0], img.size[1], 1024)
         self.setCrop(x/1024, y/1024, 1.0)
 
     def fill(self):
         img = Image.open(self.source).convert('RGB')
+        self.w, self.h = img.size[0], img.size[1]
         x, y, w, h = positionFill(img.size[0], img.size[1], 1024)
         _, _, w2, _ = positionCenter(img.size[0], img.size[1], 1024)
         self.setCrop(x/1024, y/1024, w/w2)
@@ -341,6 +404,7 @@ class Img:
 
     def doCrop(self, dim):
         img = Image.open(self.source).convert('RGB')
+        self.w, self.h = img.size[0], img.size[1]
         x, y, w, h = positionCenter(img.size[0], img.size[1], dim)
 
         if not self.ready:
@@ -362,10 +426,46 @@ class Img:
             crop.save(crop_file, quality=95)
         else:
             crop.save(crop_file)
+
+    def writeScale(self, scale_file, dim):
+        img = Image.open(self.source).convert('RGB')
+        w, h = img.size[0], img.size[1]
+        s = dim/min(w, h)
+        if w > h:
+            w = w * s
+            h = dim
+        else:
+            w = dim
+            h = h * s
+
+        img = img.resize((int(w),int(h)))
+
+        if scale_file.endswith(".jpg"):
+            img.save(scale_file, quality=95)
+        else:
+            img.save(scale_file)
+
+    def writeOriginal(self, out_file):
+        in_ext = os.path.splitext(self.source)[1]
+        out_ext = os.path.splitext(out_file)[1]
+
+        if in_ext == out_ext:
+            shutil.copyfile(self.source, out_file)
+            return
+        
+        img = Image.open(self.source).convert('RGB')
+
+        if out_file.endswith(".jpg"):
+            img.save(out_file, quality=95)
+        else:
+            img.save(out_file)
     
     def writePrompt(self, prompt_file):
         with open(prompt_file, "w", encoding="utf-8") as f:
             f.write(self.buildPrompt())
+        
+    def writePromptJson(self, prompt_file):
+        put_json({"tags": self.tags}, prompt_file)
 
     def setCrop(self, x, y, s):
         if(self.ready and x == self.offset_x and y == self.offset_y and s == self.scale):
@@ -415,11 +515,12 @@ class Backend(QObject):
     favUpdated = pyqtSignal()
     suggestionsUpdated = pyqtSignal()
 
-    select = pyqtSignal(int)
+    listEvent = pyqtSignal(int)
 
     cropWorkerUpdated = pyqtSignal()
-    cropWorkerSetup = pyqtSignal(int,int)
+    cropWorkerSetup = pyqtSignal(int,int,int,int)
     cropWorkerStart = pyqtSignal()
+    cropWorkerStop = pyqtSignal()
 
     ddbWorkerUpdated = pyqtSignal()
     ddbWorkerInterrogate = pyqtSignal(int, 'QString', bool, float, float, float)
@@ -428,25 +529,25 @@ class Backend(QObject):
         super().__init__(parent)
 
         # general state
-        self._images = images
-        self._dim = dimension
+        self.images = images
+        self.dim = dimension
         self.webui_folder = webui_folder
 
         # global tag list
-        self._lookup = {}
+        self.tagLookup = {}
         for t in tags:
-            self._lookup[t[0]] = t[1]
-        self._tags = [t[0] for t in tags]
+            self.tagLookup[t[0]] = t[1]
+        self.tagIndex = [t[0] for t in tags]
 
         # GUI state
-        self._tagColors = False
-        self._results = []
-        self._selected = 0
-        self._active = -1
-        self._current = self._images[self._active]
-        self._fav = []
-        self._freq = {}
-        self._showFrequent = True
+        self.tagColors = False
+        self.searchResults = []
+        self.listIndex = 0
+        self.imgIndex = -1
+        self.current = self.images[self.imgIndex]
+        self.fav = []
+        self.freq = {}
+        self.showFrequent = True
 
         # GUI init
         self.setActive(0)
@@ -455,8 +556,10 @@ class Backend(QObject):
         self.saveConfig()
         
         # crop worker & state
-        self.cropWorker = CropWorker(self._images, out_folder, self._dim)
-        self.cropWorkerCurrent = -1
+        self.cropWorker = CropWorker(self.images, out_folder, self.dim)
+        self.cropWorkerActive = False
+        self.cropWorkerProgress = 0.0
+        self.cropWorkerStatus = ""
         self.cropInit()
 
         # ddb worker & state
@@ -471,46 +574,35 @@ class Backend(QObject):
 
         # clean up ddb thread
         parent.aboutToQuit.connect(self.closing)
-    
-    def cropInit(self):
-        self.cropThread = QThread(self)
-        self.cropWorker.currentCallback.connect(self.currentCallback)
-        self.cropWorkerSetup.connect(self.cropWorker.setup)
-        self.cropWorkerStart.connect(self.cropWorker.start)
-        self.cropWorker.moveToThread(self.cropThread)
 
-    def ddbInit(self):
-        self.ddbWorker.add_import_paths(self.webui_folder)
-        self.ddbThread = QThread(self)
-        self.ddbWorker.resultCallback.connect(self.ddbResultCallback)
-        self.ddbWorker.loadedCallback.connect(self.ddbLoadedCallback)
-        self.ddbWorkerInterrogate.connect(self.ddbWorker.interrogate)
-        self.ddbWorker.moveToThread(self.ddbThread)
-        self.ddbThread.started.connect(self.ddbWorker.load)
-        self.ddbThread.start()
+    ### Properties
 
     @pyqtProperty(int, constant=True)
     def total(self):
-        return len(self._images)
+        return len(self.images)
 
     @pyqtProperty(int, notify=updated)
     def active(self):
-        return self._active
+        return self.imgIndex
+    
     @active.setter
     def active(self, a):
-        a = a % len(self._images)
-        if a >= 0 and a < len(self._images):
-            self.setActive(a)
+        self.setActive(a % len(self.images))
+    
     def setActive(self, a):
-        if a == self._active:
+        if a == self.imgIndex:
             return
-        self._active = a
-        self._current = self._images[self._active]
-        if not self._current.ready:
-            self._current.fill()
+        self.imgIndex = a
+        self.current = self.images[self.imgIndex]
 
-        if not self._current.ddb:
-            self._showFrequent = True
+        # setting the default crop state is expensive
+        # (requires loading the image)
+        # so only do it on demand
+        if not self.current.ready:
+            self.current.fill()
+
+        if not self.current.ddb:
+            self.showFrequent = True
         
         self.changedUpdated.emit()
         self.imageUpdated.emit()
@@ -520,146 +612,162 @@ class Backend(QObject):
 
     @pyqtProperty('QString', notify=updated)
     def source(self):
-        return self._current.source
+        return self.current.source
+    
     @pyqtProperty(bool, notify=changedUpdated)
     def changed(self):
-        return self._current.changed
+        return self.current.changed
+    
     @pyqtProperty(float, notify=imageUpdated)
     def offset_x(self):
-        return self._current.offset_x
+        return self.current.offset_x
+    
     @pyqtProperty(float, notify=imageUpdated)
     def offset_y(self):
-        return self._current.offset_y
+        return self.current.offset_y
+    
     @pyqtProperty(float, notify=imageUpdated)
     def scale(self):
-        return self._current.scale
+        return self.current.scale
+
+    @pyqtProperty(int, notify=updated)
+    def dimension(self):
+        return self.dim
+    
     @pyqtProperty(list, notify=tagsUpdated)
     def tags(self):
-        return self._current.tags
+        return self.current.tags
+    
     @pyqtProperty(list, notify=searchUpdated)
     def results(self):
-        return self._results
+        return self.searchResults
+    
     @pyqtProperty('QString', notify=cropWorkerUpdated)
-    def workerStatus(self):
-        if self.cropWorkerCurrent == -1:
-            return ""
-        return os.path.basename(self._images[self.cropWorkerCurrent].source)
+    def cropStatus(self):
+        return self.cropWorkerStatus
+    
     @pyqtProperty(float, notify=cropWorkerUpdated)
-    def workerProgress(self):
-        return (self.cropWorkerCurrent+1)/len(self._images)
+    def cropProgress(self):
+        return self.cropWorkerProgress
+    
+    @pyqtProperty(bool, notify=cropWorkerUpdated)
+    def cropActive(self):
+        return self.cropWorkerActive
+    
     @pyqtProperty('QString', notify=updated)
     def title(self):
-        return f"Tagging {self._active+1} of {len(self._images)}"
+        return f"Tagging {self.imgIndex+1} of {len(self.images)}"
+    
     @pyqtProperty(list, notify=favUpdated)
     def favourites(self):
-        return self._fav
+        return self.fav
+    
     @pyqtProperty(list, notify=suggestionsUpdated)
     def frequent(self):
-        f = [(k, self._freq[k]) for k in self._freq]
+        f = [(k, self.freq[k]) for k in self.freq]
         f.sort(key=lambda a:a[1], reverse=True)
         return [t[0] for t in f]
+    
     @pyqtProperty(list, notify=suggestionsUpdated)
     def ddb(self):
-        return self._current.ddb
+        return self.current.ddb
+    
     @pyqtProperty(int, notify=suggestionsUpdated)
     def ddbStatus(self):
+        # -2  - no webui folder set
+        # -1  - not loaded
+        # 0   - idle
+        # 1   - processing single image
+        # >=2 - processing multiple images
+
         if not self.ddbActive:
             return -2
         if self.ddbLoading:
             return -1
         if self.ddbCurrent == -1:
-            return 0 #idle
+            return 0
         if self.ddbAll:
-            return 2+self.ddbCurrent #working on all 
-        return 1 #working 
+            return 2+self.ddbCurrent
+        return 1
+    
     @pyqtProperty(bool, notify=suggestionsUpdated)
     def showingFrequent(self):
-        return self._showFrequent
+        return self.showFrequent
 
     @pyqtProperty(bool, notify=updated)
-    def tagColors(self):
-        return self._tagColors
+    def showingTagColors(self):
+        return self.tagColors
 
-    @pyqtProperty(int, notify=select)
-    def selected(self):
-        return self._selected
-    
-    @pyqtSlot()
-    def toggleTagColors(self):
-        self._tagColors = not self._tagColors
-        self.updated.emit()
-        self.saveConfig()
+    @pyqtProperty(int, notify=listEvent)
+    def activeList(self):
+        return self.listIndex
 
-    @pyqtSlot('QString', result=bool)
-    def lookup(self, tag):
-        return tag in self._lookup
+    @pyqtProperty(int, notify=updated)
+    def maxThreads(self):
+        return len(os.sched_getaffinity(0))
 
-    @pyqtSlot('QString', result=int)
-    def tagType(self, tag):
-        if tag in self._lookup:
-            return self._lookup[tag]
-        return 2
+    ### Slots
 
     @pyqtSlot('QString')
     def addTag(self, tag):
-        if tag in self._current.tags:
+        if tag in self.current.tags:
             return
-        self._current.addTag(tag)
+        self.current.addTag(tag)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
-        if not tag in self._freq:
-            self._freq[tag] = 0
-        self._freq[tag] += 1
+        if not tag in self.freq:
+            self.freq[tag] = 0
+        self.freq[tag] += 1
         self.saveConfig()
 
         self.suggestionsUpdated.emit()
 
     @pyqtSlot(int)
     def deleteTag(self, idx):
-        if idx < 0 or idx >= len(self._current.tags):
+        if idx < 0 or idx >= len(self.current.tags):
             return
-        self._current.deleteTag(idx)
+        self.current.deleteTag(idx)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
     @pyqtSlot(int, int)
     def moveTag(self, from_idx, to_idx):
-        self._current.moveTag(from_idx, to_idx)
+        self.current.moveTag(from_idx, to_idx)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
     @pyqtSlot(int,int,int,int,int,int)
     def applyCrop(self, fx, fy, fw, fh, cw, ch):
         x, y, w, h = positionCenter(fw, fh, cw)
-        self._current.setCrop(fx/cw, fy/cw, fw/w)
+        self.current.setCrop(fx/cw, fy/cw, fw/w)
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
     @pyqtSlot()
     def saveStagingData(self):
-        self._current.writeStagingData()
+        self.current.writeStagingData()
         self.changedUpdated.emit()
 
     @pyqtSlot()
     def center(self):
-        self._current.center()
+        self.current.center()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
     
     @pyqtSlot()
     def fill(self):
-        self._current.fill()
+        self.current.fill()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
     @pyqtSlot()
     def writeDebugCrop(self):
-        self._current.writeCrop("out.png", self._dim)
+        self.current.writeCrop("out.png", self.dim)
 
     @pyqtSlot()
     def reset(self):
-        self._current.reset()
+        self.current.reset()
         self.tagsUpdated.emit()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
@@ -668,55 +776,70 @@ class Backend(QObject):
     @pyqtSlot('QString')
     def search(self, s):
         if not s:
-            if len(self._tags) > MX_TAGS:
-                self._results = self._tags[0:MX_TAGS]
+            if len(self.tagIndex) > MX_TAGS:
+                self.searchResults = self.tagIndex[0:MX_TAGS]
             else:
-                self._results = self._tags
+                self.searchResults = self.tagIndex
         else:
             s = s.replace(" ", "_")
             results = []
-            for t in self._tags:
+            for t in self.tagIndex:
                 if s in t:
                     results += [t]
                 if len(results) > MX_TAGS:
                     break
 
-            self._results = results
+            self.searchResults = results
         self.searchUpdated.emit()
 
-    @pyqtSlot(int)
-    def currentCallback(self, current):
-        self.cropWorkerCurrent = current
-        self.cropWorkerUpdated.emit()
-        if current == -1:
-            self.cropThread.quit()
+    @pyqtSlot('QString', result=bool)
+    def tagExists(self, tag):
+        return tag in self.tagLookup
 
-    @pyqtSlot(int, int)
-    def package(self, mode, ext):
+    @pyqtSlot('QString', result=int)
+    def tagType(self, tag):
+        if tag in self.tagLookup:
+            return self.tagLookup[tag]
+        return 2
+    
+    @pyqtSlot()
+    def toggleTagColors(self):
+        self.tagColors = not self.tagColors
+        self.updated.emit()
+        self.saveConfig()
+
+    @pyqtSlot(int, int, int, int)
+    def package(self, img_mode, ext_mode, prompt_mode, thread_count):
+        self.cropWorkerActive = True
         self.cropThread.start()
-        self.cropWorkerSetup.emit(mode, ext)
+        self.cropWorkerSetup.emit(img_mode, ext_mode, prompt_mode, thread_count)
         self.cropWorkerStart.emit()
+        self.cropWorkerUpdated.emit()
+    
+    @pyqtSlot()
+    def stopPackage(self):
+        self.cropWorkerStop.emit()
 
     @pyqtSlot()
     def cleanTags(self):
-        tags = [t for t in self._current.tags if t in self._lookup]
-        self._current.setTags(tags)
+        tags = [t for t in self.current.tags if t in self.tagLookup]
+        self.current.setTags(tags)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
 
     @pyqtSlot()
     def sortTags(self):
-        tags = [t for t in self._tags if t in self._current.tags]
-        tags += [t for t in self._current.tags if not t in tags]
-        self._current.setTags(tags)
+        tags = [t for t in self.tagIndex if t in self.current.tags]
+        tags += [t for t in self.current.tags if not t in tags]
+        self.current.setTags(tags)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
 
     @pyqtSlot()
     def fullReset(self):
-        self._current.fullReset()
+        self.current.fullReset()
         self.imageUpdated.emit()
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
@@ -724,28 +847,28 @@ class Backend(QObject):
 
     @pyqtSlot('QString')
     def addFavourite(self, tag):
-        self._fav += [tag]
+        self.fav += [tag]
         self.favUpdated.emit()
         self.saveConfig()
 
     @pyqtSlot('QString')
     def toggleFavourite(self, tag):
-        if tag in self._fav:
-            del self._fav[self._fav.index(tag)]
+        if tag in self.fav:
+            del self.fav[self.fav.index(tag)]
         else:
-            self._fav += [tag]
+            self.fav += [tag]
         self.favUpdated.emit()
         self.saveConfig()
 
     @pyqtSlot(int)
     def deleteFavourite(self, idx):
-        del self._fav[idx]
+        del self.fav[idx]
         self.favUpdated.emit()
         self.saveConfig()
 
     @pyqtSlot(int, int)
     def moveFavourite(self, from_idx, to_idx):
-        self._fav.insert(to_idx, self._fav.pop(from_idx))
+        self.fav.insert(to_idx, self.fav.pop(from_idx))
         self.favUpdated.emit()
         self.saveConfig()
 
@@ -764,29 +887,29 @@ class Backend(QObject):
         if self.ddbLoading:
             return
 
-        if(self._current.ddb):
-            self._showFrequent = False
+        if(self.current.ddb):
+            self.showFrequent = False
 
         if self.ddbCurrent == -1:
-            self.ddbCurrent = self._active
-            im = self._current
-            self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+            self.ddbCurrent = self.imgIndex
+            im = self.current
+            self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
         
         self.suggestionsUpdated.emit()
     
     def ddbInterrogateNext(self):
         self.ddbCurrent += 1
-        if self.ddbCurrent >= len(self._images):
+        if self.ddbCurrent >= len(self.images):
             self.ddbAll = False
             self.ddbCurrent = -1
             self.suggestionsUpdated.emit()
             return
         
-        im = self._images[self.ddbCurrent]
+        im = self.images[self.ddbCurrent]
         if im.ready:
-            self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+            self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
         else:
-            self.ddbWorkerInterrogate.emit(self._dim, im.source, im.ready, 0.0, 0.0, 0.0)
+            self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, 0.0, 0.0, 0.0)
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
@@ -800,44 +923,18 @@ class Backend(QObject):
             self.ddbInterrogateNext()
 
     @pyqtSlot()
-    def ddbLoadedCallback(self):
-        self.ddbLoading = False
-        self.suggestionsUpdated.emit()
-
-    @pyqtSlot(list)
-    def ddbResultCallback(self, tags):
-        img = self._images[self.ddbCurrent]
-        img.ddb = tags
-
-        if self.ddbCurrent == self._active:
-            self._showFrequent = False
-
-        if self.ddbAll:
-            self.ddbInterrogateNext()
-        else:
-            self.ddbCurrent = -1
-            self.suggestionsUpdated.emit()
-
-    @pyqtSlot()
     def showFrequent(self):
-        self._showFrequent = True
+        self.showFrequent = True
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
     def showDDB(self):
-        self._showFrequent = False
+        self.showFrequent = False
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
-    def closing(self):
-        if self.ddbThread:
-            print("waiting for DeepDanbooru...")
-            self.ddbThread.quit()
-            self.ddbThread.wait()
-
-    @pyqtSlot()
     def copy(self):
-        prompt = self._current.buildPrompt()
+        prompt = self.current.buildPrompt()
         QApplication.clipboard().setText(prompt)
 
     @pyqtSlot(bool)
@@ -845,23 +942,23 @@ class Backend(QObject):
         prompt = QApplication.clipboard().text()
         tags = extract_tags(prompt)
         
-        real_tags = any([t in self._lookup for t in tags])
+        real_tags = any([t in self.tagLookup for t in tags])
         if not real_tags:
             return
 
         if override:
-            self._current.tags = []
+            self.current.tags = []
         
         for t in tags:
-            if not t in self._current.tags:
-                self._current.addTag(t)
+            if not t in self.current.tags:
+                self.current.addTag(t)
         
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
 
     @pyqtSlot(int)
-    def selectEvent(self, event):
+    def doListEvent(self, event):
         # events
         # -2 - cycle reverse
         # -1 - up 
@@ -871,35 +968,100 @@ class Backend(QObject):
         # 3  - reject (empty list)
 
         if(event == 3): #reject in the same direct we were cycling
-            event = 2 if self._selectDir == 1 else -2
+            event = 2 if self.cycleDelta == 1 else -2
         if(event == 2):
-            self._selectDir = 1
-            self._selected = (self._selected + 1)%6
+            self.cycleDelta = 1
+            self.listIndex = (self.listIndex + 1)%6
         if(event == -2):
-            self._selectDir = -1
-            self._selected = (self._selected + 5)%6
-            event = 2 # in the GUI event 2 is any cycle direction
+            self.cycleDelta = -1
+            self.listIndex = (self.listIndex + 5)%6
+            event = 2 # in the GUI, event 2 is any cycle direction
 
-        self.select.emit(event)
+        self.listEvent.emit(event)
     
     @pyqtSlot(int)
-    def changeSelected(self, index):
-        self._selected = index
-        self.select.emit(2)
+    def changeList(self, index):
+        self.listIndex = index
+        self.listEvent.emit(2)
+
+    ## Callbacks
+
+    @pyqtSlot(float, 'QString')
+    def cropProgressCallback(self, progress, status):
+        self.cropWorkerProgress = progress
+        self.cropWorkerStatus = status
+
+        if self.cropWorkerProgress < 0:
+            self.cropWorkerActive = False
+            self.cropWorkerProgress = 0.0
+
+        self.cropWorkerUpdated.emit()
+
+    @pyqtSlot()
+    def ddbLoadedCallback(self):
+        self.ddbLoading = False
+        self.suggestionsUpdated.emit()
+
+    @pyqtSlot(list)
+    def ddbResultCallback(self, tags):
+        img = self.images[self.ddbCurrent]
+        img.ddb = tags
+
+        if self.ddbCurrent == self.imgIndex:
+            self.showFrequent = False
+
+        if self.ddbAll:
+            self.ddbInterrogateNext()
+        else:
+            self.ddbCurrent = -1
+            self.suggestionsUpdated.emit()
+    
+    @pyqtSlot()
+    def closing(self):
+        if self.ddbThread:
+            print("waiting for Worker...")
+            self.cropWorkerStop.emit() #ask nicely for the worker to stop
+            while self.cropWorker.pool.activeThreadCount() > 0:
+                time.sleep(0.01)
+            self.cropThread.quit()
+            self.cropThread.wait()
+            print("waiting for DeepDanbooru...")
+            self.ddbThread.quit()
+            self.ddbThread.wait()
+
+    ### Misc
+        
+    def cropInit(self):
+        self.cropThread = QThread(self)
+        self.cropWorker.progressCallback.connect(self.cropProgressCallback)
+        self.cropWorkerSetup.connect(self.cropWorker.setup)
+        self.cropWorkerStart.connect(self.cropWorker.start)
+        self.cropWorkerStop.connect(self.cropWorker.stop)
+        self.cropWorker.moveToThread(self.cropThread)
+
+    def ddbInit(self):
+        self.ddbWorker.add_import_paths(self.webui_folder)
+        self.ddbThread = QThread(self)
+        self.ddbWorker.resultCallback.connect(self.ddbResultCallback)
+        self.ddbWorker.loadedCallback.connect(self.ddbLoadedCallback)
+        self.ddbWorkerInterrogate.connect(self.ddbWorker.interrogate)
+        self.ddbWorker.moveToThread(self.ddbThread)
+        self.ddbThread.started.connect(self.ddbWorker.load)
+        self.ddbThread.start()
 
     def loadConfig(self):
         j = get_json(CONFIG)
         if 'fav' in j:
-            self._fav = j["fav"]
+            self.fav = j["fav"]
         if 'freq' in j:
-            self._freq = j["freq"]
+            self.freq = j["freq"]
         if 'webui' in j and self.webui_folder == None:
             self.webui_folder = j["webui"]
         if 'colors' in j:
-            self._tagColors = j["colors"]
+            self.tagColors = j["colors"]
 
     def saveConfig(self):
-        put_json({"fav": self._fav, "freq": self._freq, "webui": self.webui_folder, "colors": self._tagColors}, CONFIG)
+        put_json({"fav": self.fav, "freq": self.freq, "webui": self.webui_folder, "colors": self.tagColors}, CONFIG)
 
 
 def start():
@@ -937,7 +1099,7 @@ def start():
         staging_folder = "staging"
 
         #migrate old default folder
-        if os.path.exists("metadata"):
+        if os.path.exists("metadata") and not os.path.exists("staging"):
             os.rename("metadata", "staging")
 
         if not os.path.exists(staging_folder):

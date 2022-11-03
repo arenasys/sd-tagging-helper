@@ -13,6 +13,8 @@ Item {
     signal pressed()
     signal doublePressed()
     signal contextMenu()
+    signal entered()
+    signal exited()
 
     property bool hovered: dragArea.containsMouse
 
@@ -56,6 +58,14 @@ Item {
                     root.contextMenu()
                 }
                 
+            }
+
+            onEntered: {
+                root.entered()
+            }
+
+            onExited: {
+                root.exited()
             }
 
             onDoubleClicked: {

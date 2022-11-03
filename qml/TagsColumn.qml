@@ -8,6 +8,16 @@ Item {
 
     signal tagAdded()
     signal focusRelease()
+    
+    function addFavourites() {
+        for(var i = 0; i < backend.favourites.length; i++) {
+            var tag = backend.favourites[i]
+            if(!backend.tags.includes(tag)) {
+                backend.addTag(tag)
+                root.tagAdded()
+            }
+        }
+    }
 
     Search {
         id: searchBox
@@ -104,24 +114,24 @@ Item {
 
     Connections {
         target: backend
-        function onSelect(event) {
+        function onListEvent(event) {
             // handle entering the search box and switching freq/ddb mode
             if(event == 2) {
-                if(backend.selected == 1) {
+                if(backend.activeList == 1) {
                     searchBox.gainFocus()
                 }
                 if(!root.altLayoutMode) {
-                    if(backend.selected != 1 && searchBox.hasFocus) {
+                    if(backend.activeList != 1 && searchBox.hasFocus) {
                         root.focusRelease()
                     }
-                    if(backend.selected == 3 && !backend.showingFrequent) {
+                    if(backend.activeList == 3 && !backend.showingFrequent) {
                         backend.showFrequent()
                     }
-                    if(backend.selected == 5 && backend.showingFrequent) {
+                    if(backend.activeList == 5 && backend.showingFrequent) {
                         if(backend.ddb.length > 0) {
                             backend.showDDB()
                         } else {
-                            backend.selectEvent(3)
+                            backend.doListEvent(3)
                         }
                     }
                 }
@@ -192,7 +202,7 @@ Item {
             moveEnabled: false
 
             onIndexChanged: {
-                if(index == backend.selected) {
+                if(index == backend.activeList) {
                     sugTagsList.selectFirst()
                 }
             }
@@ -278,13 +288,7 @@ Item {
             tooltip: "Add all"
             color: "#303030"
             onPressed: {
-                for(var i = 0; i < backend.favourites.length; i++) {
-                    var tag = backend.favourites[i]
-                    if(!backend.tags.includes(tag)) {
-                        backend.addTag(tag)
-                        root.tagAdded()
-                    }
-                }
+                root.addFavourites()
             }
         }
     }

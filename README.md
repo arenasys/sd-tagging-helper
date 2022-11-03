@@ -22,14 +22,7 @@ Since all changes are made in the staging folder, the input data/images are left
 
 There are two modes of cropping, you can freely change between them with `Alt`. Red indicates some changes have not been saved yet, enabling you to revert to the last save with `Ctrl+Z`. Changes are saved automatically when switching modes or image. Press the save button or `Ctrl+S` to save manually. Right click the reset button to show the option to fully reset back to the original input state.
 
-When ready the inputs can be packaged into the output folder, in this folder the images will be cropped/resized and the modified tags written.
-The two modes of packaging are:
-- Single image
-- Image/prompt pairs
-
-Single image will save an image with the filename set to the prompt.
-Image/prompt pairs will save the image with its original name and a corresponding text file containing the prompt (like the input folder format).
-The prompt will be comma separated and be cleaned (underscores replaced with spaces etc).
+When ready the inputs can be packaged into the output folder, various packaging options are available.
 
 ### DeepDanbooru
 Assumes you have a working instance of [stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with DeepDanbooru working.
