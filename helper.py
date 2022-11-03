@@ -215,12 +215,18 @@ class DDBWorker(QObject):
         self.webui_folder = webui_folder
         self.deep_folder = os.path.join(self.webui_folder, 'models', 'deepbooru')
 
-        venv_deep_folder = os.path.join(self.webui_folder, 'venv', 'Lib', 'site-packages')
-        if os.path.isdir(venv_deep_folder):
-            sys.path.insert(0, venv_deep_folder)
-
         sys.path.insert(0, self.webui_folder)
         sys.path.insert(0, self.deep_folder)
+
+        venv_folder = os.path.join(self.webui_folder, 'venv', 'lib', '*')
+
+        for venv_path in glob.glob(venv_folder, recursive = True):
+            if not venv_path.endswith("site-packages"):
+                venv_path = os.path.join(venv_path, "site-packages")
+
+            if os.path.isdir(venv_path):
+                sys.path.insert(0, venv_path)
+
 
     @pyqtSlot()
     def load(self):
