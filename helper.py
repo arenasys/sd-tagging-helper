@@ -765,7 +765,11 @@ class Backend(QObject):
 
     @pyqtProperty(int, notify=updated)
     def maxThreads(self):
-        return len(os.sched_getaffinity(0))
+        try:
+            n_threads = len(os.sched_getaffinity(0))
+        except AttributeError:
+            n_threads = os.cpu_count()
+        return n_threads
 
     ### Slots
 
