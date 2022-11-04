@@ -49,7 +49,7 @@ Item {
                 height: currentLabel.height
                 width: height
                 icon: "qrc:/icons/trash.svg"
-                tooltip: "Remove unknown"
+                tooltip: "Remove unknown (Ctrl+R)"
                 color: "#303030"
                 id: cleanButton
                 onPressed: {
@@ -61,7 +61,7 @@ Item {
                 height: currentLabel.height
                 width: height
                 icon: "qrc:/icons/sort.svg"
-                tooltip: "Sort by popularity"
+                tooltip: "Sort by popularity (Ctrl+T)"
                 color: "#303030"
                 id: sortButton
                 onPressed: {
