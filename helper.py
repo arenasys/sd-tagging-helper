@@ -8,6 +8,8 @@ import time
 import argparse
 import platform
 import shutil
+import statistics
+import operator
 #import requests
 
 from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageQt
@@ -110,21 +112,21 @@ def tags_to_prompt(tags):
     #prompt = re.sub(r'\([^)]*\)', '', prompt)
     return prompt
 
-def get_edge_colors(img, vertical, inset=0.01, samples=16):
+def get_edge_colors(img, vertical, inset=0.00, samples=32):
     a = (0,0,0)
     b = (0,0,0)
 
-    inset = int(min(img.size[0], img.size[1])*0.01)
+    inset = 2
 
     a_s = []
     b_s = []
 
     if vertical:
-        for y in range(0, img.size[1], img.size[1]//samples):
+        for y in range(inset, img.size[1], img.size[1]//(samples-1)):
             a_s += [img.getpixel((inset,y))]
             b_s += [img.getpixel((img.size[0]-1-inset,y))]
     else:
-        for x in range(0, img.size[0], img.size[0]//samples):
+        for x in range(inset, img.size[0], img.size[0]//(samples-1)):
             a_s += [img.getpixel((x,inset))]
             b_s += [img.getpixel((x,img.size[1]-1-inset))]
 
@@ -145,6 +147,7 @@ def get_edge_colors(img, vertical, inset=0.01, samples=16):
 
     a_t = (int(a_t[0]),int(a_t[1]),int(a_t[2]))
     b_t = (int(b_t[0]),int(b_t[1]),int(b_t[2]))
+
 
     return a_t, b_t, a_v, b_v
 
@@ -435,12 +438,31 @@ class Img:
     def doCrop(self, dim):
         img = Image.open(self.source).convert('RGB')
         self.w, self.h = img.size[0], img.size[1]
-        x, y, w, h = positionCenter(img.size[0], img.size[1], dim)
+        x, y, w, h = positionCenter(img.size[0], img.size[1], dim) 
 
         s = (w/img.size[0]) * self.scale
         img = img.resize((int(img.size[0] * s),int(img.size[1] * s)))
+
+        L, T = int(self.offset_x*dim)>0, int(self.offset_y*dim)>0
+        R, B = int(self.offset_x*dim)<(dim-img.size[0])-1, int(self.offset_y*dim)<(dim-img.size[1])-1
+
+        if L or R:
+            LC, RC, LV, RV = get_edge_colors(img, True)
+        if T or B:
+            TC, BC, TV, BV = get_edge_colors(img, False)        
+
         crop = Image.new(mode='RGB',size=(dim,dim))
         crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
+
+        if(L and not B and not T and LV < 200):
+            ImageDraw.floodfill(crop, (0,0), LC)
+        if(R and not B and not T and RV < 200):
+            ImageDraw.floodfill(crop, (dim-1,0), RC)
+        if(T and not L and not R and TV < 200):
+            ImageDraw.floodfill(crop, (0,0), TC)
+        if(B and not L and not R and BV < 200):
+            ImageDraw.floodfill(crop, (0, dim-1), BC)
+
         return crop
 
     def buildPrompt(self):
@@ -534,23 +556,33 @@ class Img:
     
     def fullReset(self):
         self.tags = get_metadata(self.source)
-        self.fill()
-        self.writeStagingData()
+        self.prepare()
         self.changed = False
 
     def prepare(self):
-        self.fill()
+        self.center()
         self.writeStagingData()
 
 class PreviewProvider(QQuickImageProvider):
     def __init__(self):
         super(PreviewProvider, self).__init__(QQuickImageProvider.Image)
         self.preview = None
+        self.source = None
+        self.dim = 1024
+        self.count = 0
+        self.last = None
+
     
-    def setPreview(self, preview):
-        self.preview = preview
+    def setSource(self, source, dim):
+        self.source = source
+        self.dim = dim
 
     def requestImage(self, p_str, size):
+        if p_str != self.last:
+            img = self.source.doCrop(self.dim)
+            self.preview = ImageQt.ImageQt(img)
+            self.last = p_str
+
         return self.preview, self.preview.size()
 
 
@@ -599,6 +631,7 @@ class Backend(QObject):
         self.previewProvider = PreviewProvider()
         self.previewCount = 0
         self.previewPrompt = ""
+        self.previewVisible = False
 
         # GUI init
         self.setActive(0)
@@ -1100,8 +1133,7 @@ class Backend(QObject):
     ### Misc
     
     def setPreview(self):
-        img = self.current.doCrop(self.dim)
-        self.previewProvider.setPreview(ImageQt.ImageQt(img))
+        self.previewProvider.setSource(self.current, self.dim)
         self.previewCount += 1
 
     def cropInit(self):

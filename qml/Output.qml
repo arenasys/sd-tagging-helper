@@ -11,11 +11,17 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: previewDivider.top
+
+        LoadingSpinner {
+            anchors.centerIn: parent
+        }
+
+
         CenteredImage {
             id: preview
             anchors.centerIn: parent
-            asynchronous: false
-            source: backend.preview
+            asynchronous: true
+            source: output.visible ? backend.preview : ""
             maxWidth: parent.width
             maxHeight: parent.height
             fill: true

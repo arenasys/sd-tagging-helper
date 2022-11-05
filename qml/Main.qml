@@ -122,6 +122,7 @@ ApplicationWindow {
             clip: true
             Output {
                 id: output
+                visible: bar.currentIndex == 1
                 anchors.fill: parent
             }
         }

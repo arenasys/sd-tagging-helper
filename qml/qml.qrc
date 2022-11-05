@@ -24,6 +24,7 @@
         <file>TabMenu.qml</file>
         <file>TabItem.qml</file>
         <file>Output.qml</file>
+        <file>LoadingSpinner.qml</file>
 
         <file>icons/cross.svg</file>
         <file>icons/plus.svg</file>
