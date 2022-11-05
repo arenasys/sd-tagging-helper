@@ -8,7 +8,7 @@ import time
 import argparse
 import platform
 import shutil
-import requests
+#import requests
 
 from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
@@ -188,20 +188,20 @@ def to_filename(base, tags):
     name = ''.join([c for c in tags_to_prompt(tags) if not c in illegal])
     return os.path.join(base, name)
 
-def download(url, filename):
-    resp = requests.get(url, stream=True)
-    total = int(resp.headers.get('content-length', 0))
-
-    with open(filename, 'wb') as file, tqdm(
-        desc=filename,
-        total=total,
-        unit='iB',
-        unit_scale=True,
-        unit_divisor=1024,
-    ) as bar:
-        for data in resp.iter_content(chunk_size=1024):
-            size = file.write(data)
-            bar.update(size)
+#def download(url, filename):
+#    resp = requests.get(url, stream=True)
+#    total = int(resp.headers.get('content-length', 0))
+#
+#    with open(filename, 'wb') as file, tqdm(
+#        desc=filename,
+#        total=total,
+#        unit='iB',
+#        unit_scale=True,
+#        unit_divisor=1024,
+#    ) as bar:
+#        for data in resp.iter_content(chunk_size=1024):
+#            size = file.write(data)
+#            bar.update(size)
 
 class DDBWorker(QObject):
     resultCallback = pyqtSignal(list)
