@@ -483,13 +483,13 @@ class Img:
         img = Image.open(self.source).convert('RGB')
         self.w, self.h = img.size[0], img.size[1]
 
-        s = dim/min(w, h)
-        if w > h:
-            w = w * s
+        s = dim/min(self.w, self.h)
+        if self.w > self.h:
+            w = self.w * s
             h = dim
         else:
             w = dim
-            h = h * s
+            h = self.h * s
 
         img = img.resize((int(w),int(h)))
 
@@ -1119,13 +1119,14 @@ class Backend(QObject):
     
     @pyqtSlot()
     def closing(self):
-        if self.ddbThread:
+        if self.cropThread:
             print("waiting for Worker...")
             self.cropWorkerStop.emit() #ask nicely for the worker to stop
             while self.cropWorker.pool.activeThreadCount() > 0:
                 time.sleep(0.01)
             self.cropThread.quit()
             self.cropThread.wait()
+        if self.ddbThread:
             print("waiting for DeepDanbooru...")
             self.ddbThread.quit()
             self.ddbThread.wait()
