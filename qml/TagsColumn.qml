@@ -120,10 +120,10 @@ Item {
                 if(backend.activeList == 1) {
                     searchBox.gainFocus()
                 }
+                if(backend.activeList != 1 && searchBox.hasFocus) {
+                    root.focusRelease()
+                }
                 if(!root.altLayoutMode) {
-                    if(backend.activeList != 1 && searchBox.hasFocus) {
-                        root.focusRelease()
-                    }
                     if(backend.activeList == 3 && !backend.showingFrequent) {
                         backend.showFrequent()
                     }

@@ -61,6 +61,7 @@ Item {
                 event.accepted = true
                 break;
             case Qt.Key_Tab:
+                event.accepted = true
                 if(event.modifiers & Qt.ControlModifier) {
                     backend.doListEvent(-2)
                 } else {

@@ -12,9 +12,8 @@ import statistics
 import operator
 #import requests
 
-from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageQt
+from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
-from PyQt5.QtGui import QImage
 from PyQt5.QtQml import QQmlApplicationEngine
 from PyQt5.QtWidgets import QFileDialog, QApplication
 from PyQt5.QtQuick import QQuickImageProvider
@@ -248,7 +247,7 @@ class DDBWorker(QObject):
         import numpy as np
 
         img = Img(file, "")
-        if(ready):
+        if ready:
             img.setCrop(x,y,s)
         else:
             img.prepare()
@@ -397,6 +396,7 @@ class Img:
         self.changed = False
         self.ddb = []
         self.w, self.h = None, None
+        self.offset_x, self.offset_y, self.scale = None, None, None
 
     def center(self):
         if not self.w or not self.h:
@@ -632,6 +632,7 @@ class Backend(QObject):
         self.previewCount = 0
         self.previewPrompt = ""
         self.previewVisible = False
+        self.cycleDelta = None
 
         # GUI init
         self.setActive(0)
