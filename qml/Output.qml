@@ -29,6 +29,57 @@ Rectangle {
             onStatusChanged: {
                 if(status == Image.Ready) {
                     preview.sync()
+                    canvas.visible = true
+                    canvas.requestPaint()
+                } else {
+                    canvas.visible = false
+                }
+            }
+        }
+
+        Canvas {
+            id: canvas
+            anchors.fill: preview
+            property var l: backend.letterboxs
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.reset()
+                return
+                ctx.lineWidth = 1
+
+                var s = width/1024
+
+                for(var i = 0; i < l.length; i++) {
+                    var letterbox = l[i]
+                    var polygon = letterbox[0]
+                    var edges = letterbox[1]
+
+                    var hue = (i/(l.length+1))
+                    var color = Qt.hsva(hue, 0.25, 1.0, 1.0)
+
+                    ctx.lineWidth = 1
+                    ctx.strokeStyle = "#aaa"
+                    ctx.fillStyle = ctx.createPattern(color, Qt.DiagCrossPattern)
+                    
+                    ctx.beginPath()
+                    ctx.moveTo(polygon[0].x*s, polygon[0].y*s)
+                    for(var k = 1; k < polygon.length; k++) {
+                        ctx.lineTo(polygon[k].x*s, polygon[k].y*s)
+                    }
+                    ctx.lineTo(polygon[0].x*s, polygon[0].y*s)
+                    ctx.stroke()
+                    ctx.fill()
+
+                    ctx.lineWidth = 3
+                    ctx.strokeStyle = Qt.hsva(hue, 1.0, 1.0, 1.0)
+
+                    for(var k = 0; k < edges.length; k++) {
+                        var edge = edges[k]
+                        ctx.beginPath()
+                        ctx.moveTo(edge[0].x*s, edge[0].y*s)
+                        ctx.lineTo(edge[1].x*s, edge[1].y*s)
+                        ctx.stroke()
+                    }
                 }
             }
         }

@@ -14,7 +14,7 @@ import operator
 import signal
 
 from PIL import Image, ImageDraw, ImageQt
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool, QPointF
 from PyQt5.QtQml import QQmlApplicationEngine
 from PyQt5.QtWidgets import QFileDialog, QApplication
 from PyQt5.QtQuick import QQuickImageProvider
@@ -402,6 +402,7 @@ class Img:
         self.ddb = []
         self.w, self.h = None, None
         self.offset_x, self.offset_y, self.scale = None, None, None
+        self.letterboxs = []
 
     def center(self):
         if not self.w or not self.h:
@@ -440,6 +441,9 @@ class Img:
             json.dump(data, f)
         self.changed = False
 
+    def addLetterbox(self, polygon, edges):
+        self.letterboxs += [(polygon, edges)]
+
     def doCrop(self, dim):
         img = Image.open(self.source).convert('RGB')
         self.w, self.h = img.size[0], img.size[1]
@@ -450,6 +454,60 @@ class Img:
 
         L, T = int(self.offset_x*dim)>0, int(self.offset_y*dim)>0
         R, B = int(self.offset_x*dim)<(dim-img.size[0])-1, int(self.offset_y*dim)<(dim-img.size[1])-1
+
+
+        left_x = round(self.offset_x*dim,0)
+        right_x = dim-round((dim-img.size[0])-(self.offset_x*dim),0)
+        top_y = round(self.offset_y*dim,0)
+        bottom_y = dim-round((dim-img.size[1])-(self.offset_y*dim),0)
+
+        self.letterboxs = []
+
+        #L,R,B,T
+        if(L and not T and not B):
+            self.addLetterbox([(0,0), (left_x,0), (left_x, dim), (0, dim)], [((left_x,0), (left_x, dim))])
+        if(R and not T and not B):
+            self.addLetterbox([(right_x,0), (dim,0), (dim, dim), (right_x, dim)], [((right_x,0), (right_x, dim))])
+        if(T and not L and not R):
+            self.addLetterbox([(0,0), (dim,0), (dim, top_y), (0, top_y)], [((dim, top_y), (0, top_y))])
+        if(B and not L and not R):
+            self.addLetterbox([(0,bottom_y), (dim,bottom_y), (dim, dim), (0, dim)], [((0,bottom_y), (dim,bottom_y))])
+
+        #TL, BL, TR, BR
+        if(L and T and not R and not B):
+            self.addLetterbox([(0,0), (dim,0), (dim, top_y), (left_x, top_y), (left_x, dim), (0, dim)], [((left_x, top_y), (dim, top_y)), ((left_x, top_y), (left_x, dim))])
+        if(L and B and not R and not T):
+            self.addLetterbox([(0,0), (left_x,0), (left_x, bottom_y), (dim, bottom_y), (dim, dim), (0, dim)], [((left_x, 0), (left_x, bottom_y)), ((left_x, bottom_y), (dim, bottom_y))])
+        if(R and T and not L and not B):
+            self.addLetterbox([(0,0), (dim,0), (dim, dim), (right_x, dim), (right_x, top_y), (0, top_y)], [((0, top_y), (right_x, top_y)), ((right_x, top_y), (right_x, dim))])
+        if(R and B and not L and not T):
+            self.addLetterbox([(right_x,0), (dim,0), (dim, dim), (0, dim), (0, bottom_y), (right_x, bottom_y)], [((right_x, 0), (right_x, bottom_y)), ((right_x, bottom_y), (0, bottom_y))])
+
+        #LU, TU, RU, BU
+
+        if(L and T and B and not R):
+            poly = [(0,0), (dim,0), (dim, top_y), (left_x, top_y), (left_x, bottom_y), (dim, bottom_y), (dim, dim), (0, dim)]
+            edges = [((left_x, top_y), (dim,top_y)), ((left_x, top_y), (left_x, bottom_y)), ((left_x, bottom_y), (dim, bottom_y))]
+            self.addLetterbox(poly, edges)
+        if(T and L and R and not B):
+            poly = [(0,0), (dim,0), (dim, dim), (right_x, dim), (right_x, top_y), (left_x, top_y), (left_x, dim), (0, dim)]
+            edges = [((left_x,dim), (left_x,top_y)), ((left_x, top_y), (right_x, top_y)), ((right_x, top_y), (right_x, dim))]
+            self.addLetterbox(poly, edges)
+        if(R and T and B and not L):
+            poly = [(0,0), (dim,0), (dim, dim), (0, dim), (0, bottom_y), (right_x, bottom_y), (right_x, top_y), (0, top_y)]
+            edges = [((0, top_y), (right_x,top_y)), ((right_x,top_y), (right_x, bottom_y)), ((right_x, bottom_y), (0, bottom_y))]
+            self.addLetterbox(poly, edges)
+        if(B and L and R and not T):
+            poly = [(0,0), (left_x,0), (left_x, bottom_y), (right_x, bottom_y), (right_x, 0), (dim, 0), (dim, dim), (0, dim)]
+            edges = [((left_x,0), (left_x,bottom_y)), ((left_x, bottom_y), (right_x, bottom_y)), ((right_x, bottom_y), (right_x, 0))]
+            self.addLetterbox(poly, edges)
+
+        #All
+        dh = dim//2
+        if(L and R and T and B):
+            poly = [(0,0), (dim, 0), (dim, dim), (dh, dim), (dh, bottom_y), (right_x, bottom_y), (right_x, top_y), (left_x, top_y), (left_x, bottom_y), (dh, bottom_y), (dh,dim), (0,dim)]
+            edges = [((left_x, top_y), (right_x, top_y)), ((right_x, top_y), (right_x, bottom_y)), ((right_x, bottom_y), (left_x, bottom_y)), ((left_x, bottom_y), (left_x, top_y))]
+            self.addLetterbox(poly, edges)
 
         if L or R:
             LC, RC, LV, RV = get_edge_colors(img, True)
@@ -568,6 +626,9 @@ class Img:
         self.center()
         self.writeStagingData()
 
+class PreviewProviderSignals(QObject):
+    updated = pyqtSignal()
+
 class PreviewProvider(QQuickImageProvider):
     def __init__(self):
         super(PreviewProvider, self).__init__(QQuickImageProvider.Image)
@@ -576,7 +637,7 @@ class PreviewProvider(QQuickImageProvider):
         self.dim = 1024
         self.count = 0
         self.last = None
-
+        self.signals = PreviewProviderSignals()
     
     def setSource(self, source, dim):
         self.source = source
@@ -587,6 +648,7 @@ class PreviewProvider(QQuickImageProvider):
             img = self.source.doCrop(self.dim)
             self.preview = ImageQt.ImageQt(img)
             self.last = p_str
+            self.signals.updated.emit()
 
         return self.preview, self.preview.size()
 
@@ -599,6 +661,7 @@ class Backend(QObject):
     searchUpdated = pyqtSignal()
     favUpdated = pyqtSignal()
     suggestionsUpdated = pyqtSignal()
+    previewUpdated = pyqtSignal()
 
     listEvent = pyqtSignal(int)
 
@@ -637,6 +700,7 @@ class Backend(QObject):
         self.freq = {}
         self.showFrequent = True
         self.previewProvider = PreviewProvider()
+        self.previewProvider.signals.updated.connect(self.previewCallback)
         self.previewCount = 0
         self.previewPrompt = ""
         self.previewVisible = False
@@ -812,6 +876,15 @@ class Backend(QObject):
         except AttributeError:
             n_threads = os.cpu_count()
         return n_threads
+
+    @pyqtProperty(list, notify=previewUpdated)
+    def letterboxs(self):
+        out = []
+        for p, e in self.current.letterboxs:
+            p = [QPointF(*v) for v in p]
+            e = [[QPointF(*v) for v in edge] for edge in e]
+            out += [[p,e]]
+        return out
 
     ### Slots
 
@@ -1162,6 +1235,10 @@ class Backend(QObject):
             print("waiting for DeepDanbooru...")
             self.ddbThread.quit()
             self.ddbThread.wait()
+
+    @pyqtSlot()
+    def previewCallback(self):
+        self.previewUpdated.emit()
 
     ### Misc
     

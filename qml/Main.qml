@@ -191,7 +191,7 @@ ApplicationWindow {
         onTagAdded: {
             current.tagAdded()
         }
-        
+
         onTagDeleted: {
             current.tagDeleted()
         }
@@ -473,6 +473,12 @@ ApplicationWindow {
                     break;
                 case Qt.Key_Alt:
                     changeMode()
+                    break;
+                case Qt.Key_1:
+                    bar.currentIndex = 0
+                    break;
+                case Qt.Key_2:
+                    bar.currentIndex = 1
                     break;
                 default:
                     event.accepted = false
