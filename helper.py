@@ -11,6 +11,8 @@ import shutil
 import statistics
 import operator
 #import requests
+import signal
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
@@ -1235,7 +1237,14 @@ def start():
 
     QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-    app = QApplication(sys.argv)
+
+    class Application(QApplication):
+        def event(self, e):
+            return QApplication.event(self, e)
+
+    app = Application(sys.argv)
+    signal.signal(signal.SIGINT, lambda *a: app.quit())
+    app.startTimer(100)
 
     # let the user choose a folder via the GUI, save it for later
     if not in_folder:
