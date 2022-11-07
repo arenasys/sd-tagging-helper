@@ -12,7 +12,6 @@ import statistics
 import operator
 #import requests
 import signal
-signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool
