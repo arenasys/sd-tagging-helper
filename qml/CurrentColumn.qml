@@ -86,7 +86,7 @@ Item {
             model: backend.tags
             anchors.fill: parent
 
-            function getOverlay(tag, index) {
+            function getOverlay(tag, index, model) {
                 return backend.tagExists(tag) ? "#00000000" : "#33550000"
             }
 
@@ -97,9 +97,31 @@ Item {
             onDoublePressed: {
                 backend.deleteTag(index)
             }
+
+            onContextMenu: {
+                if(!backend.tagExists(tag)) {
+                    tagContextMenu.tag = tag
+                    tagContextMenu.popup()
+                }
+            }
             
             onModelChanged: {
                 populate()
+            }
+        }
+        ContextMenu {
+            id: tagContextMenu
+            property var tag
+
+            Action {
+                text: "Add unknown tag"
+                onTriggered: {
+                    backend.addCustomTag(tagContextMenu.tag)
+                }
+            }
+
+            onClosed: {
+                root.focusRelease()
             }
         }
     }

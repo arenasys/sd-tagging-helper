@@ -59,6 +59,43 @@ Item {
         anchors.right: searchBox.right
         clip: true
 
+        Column {
+            anchors.centerIn: parent
+            width: parent.width
+            Text {
+                id: addText
+                visible: backend.results.length == 0
+                text: "Add <font color=\"#fff\">" + searchBox.text + "</font> to tags?"
+                anchors.horizontalCenter: parent.horizontalCenter
+                
+                width: parent.width - 20
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 15
+                font.bold: false
+                color: "#aaa"
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+            IconButton {
+                id: addButton
+                
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: addText.visible
+                width: 30
+                height: 30
+                icon: "qrc:/icons/plus.svg"
+                tooltip: "Add tag"
+                color: "transparent"
+                onPressed: {
+                    backend.addCustomTag(searchBox.text)
+                    var search = searchBox.text
+                    searchBox.clear()
+                    searchBox.text = search
+                }
+            }
+        }
+
         Tags {
             id: searchTagsList
             index: 2
@@ -66,7 +103,7 @@ Item {
             anchors.fill: parent
             moveEnabled: false
 
-            function getOverlay(tag, index) {
+            function getOverlay(tag, index, model) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
             }
 
@@ -207,7 +244,7 @@ Item {
                 }
             }
 
-            function getOverlay(tag, index) {
+            function getOverlay(tag, index, model) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
             }
 
@@ -308,7 +345,7 @@ Item {
             model: backend.favourites
             anchors.fill: parent
 
-            function getOverlay(tag, index) {
+            function getOverlay(tag, index, model) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
             }
 

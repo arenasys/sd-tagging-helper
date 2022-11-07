@@ -56,7 +56,7 @@ Item {
             model: backend.ddb
             anchors.fill: parent
 
-            function getOverlay(tag, index) {
+            function getOverlay(tag, index, model) {
                 return backend.tags.includes(tag) ? "#77000000" : "#00000000"
             } 
 

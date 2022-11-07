@@ -13,7 +13,7 @@ Item {
     signal moved(int from, int to)
     signal contextMenu(string tag, int index)
 
-    property var tagColor: ["#0879f8", "#c00004", "#fff", "#c10cad", "#00ab2c", "#fd9200"]
+    property var tagColor: ["#0879f8", "#c00004", "#fff", "#c10cad", "#00ab2c", "#fd9200", "#08f4f8"]
 
     function tagAdded() {
         listView.positionViewAtEnd()
@@ -295,7 +295,7 @@ Item {
                     id: overlay
                     anchors.fill: bg
                     radius: 5
-                    color: getOverlay(model.text, model.index)
+                    color: getOverlay(model.text, model.index, root.model)
                 }
             }
 

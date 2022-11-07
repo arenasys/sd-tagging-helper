@@ -170,6 +170,10 @@ def get_tags_from_csv(path):
                 tags += [(t[0],0)]
     return tags
 
+def put_tag_in_csv(path, tag):
+    with open(path, "a", encoding="utf-8") as file:
+        file.write(f"{tag},6\n")
+
 def get_json(file):
     if not os.path.isfile(file):
         return {}
@@ -606,7 +610,7 @@ class Backend(QObject):
     ddbWorkerUpdated = pyqtSignal()
     ddbWorkerInterrogate = pyqtSignal(int, 'QString', bool, float, float, float)
 
-    def __init__(self, images, tags, out_folder, webui_folder, dimension, parent=None):
+    def __init__(self, images, tags_file, out_folder, webui_folder, dimension, parent=None):
         super().__init__(parent)
 
         # general state
@@ -615,6 +619,8 @@ class Backend(QObject):
         self.webui_folder = webui_folder
 
         # global tag list
+        self.tags_file = tags_file
+        tags = get_tags_from_csv(tags_file)
         self.tagLookup = {}
         for t in tags:
             self.tagLookup[t[0]] = t[1]
@@ -622,6 +628,7 @@ class Backend(QObject):
 
         # GUI state
         self.tagColors = False
+        self.currentSearch = ""
         self.searchResults = []
         self.listIndex = 0
         self.imgIndex = -1
@@ -879,12 +886,14 @@ class Backend(QObject):
     @pyqtSlot('QString')
     def search(self, s):
         if not s:
+            self.currentSearch = s
             if len(self.tagIndex) > MX_TAGS:
                 self.searchResults = self.tagIndex[0:MX_TAGS]
             else:
                 self.searchResults = self.tagIndex
         else:
             s = s.replace(" ", "_")
+            self.currentSearch = s
             results = []
             for t in self.tagIndex:
                 if s in t:
@@ -1086,6 +1095,17 @@ class Backend(QObject):
     def changeList(self, index):
         self.listIndex = index
         self.listEvent.emit(2)
+    
+    @pyqtSlot('QString')
+    def addCustomTag(self, tag):
+        if tag in self.tagLookup:
+            return
+        self.tagLookup[tag] = 6
+        self.tagIndex += [tag]
+        put_tag_in_csv(self.tags_file, tag)
+
+        self.tagsUpdated.emit()
+        self.search(self.currentSearch)
 
     ## Callbacks
 
@@ -1170,6 +1190,7 @@ class Backend(QObject):
 
     def saveConfig(self):
         put_json({"fav": self.fav, "freq": self.freq, "webui": self.webui_folder, "colors": self.tagColors}, CONFIG)
+    
 
 
 def start():
@@ -1259,7 +1280,6 @@ def start():
 
     # load all the images & staging data
     images = get_images(in_folder, staging_folder)
-    tags = get_tags_from_csv(tags_file)
 
     print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 
@@ -1268,7 +1288,7 @@ def start():
         exit(1)
     
     # spin up the GUI
-    backend = Backend(images, tags, out_folder, webui_folder, dim, parent=app)
+    backend = Backend(images, tags_file, out_folder, webui_folder, dim, parent=app)
 
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", backend.previewProvider)
