@@ -29,10 +29,7 @@ Rectangle {
             onStatusChanged: {
                 if(status == Image.Ready) {
                     preview.sync()
-                    canvas.visible = true
                     canvas.requestPaint()
-                } else {
-                    canvas.visible = false
                 }
             }
         }
@@ -41,10 +38,15 @@ Rectangle {
             id: canvas
             anchors.fill: preview
             property var l: backend.letterboxs
+            property var drawing: false
             onPaint: {
                 var ctx = getContext("2d")
                 ctx.reset()
-                return
+
+                if(!drawing) {
+                    return
+                }
+                
                 ctx.lineWidth = 1
 
                 var s = width/1024
@@ -70,7 +72,7 @@ Rectangle {
                     ctx.stroke()
                     ctx.fill()
 
-                    ctx.lineWidth = 3
+                    //ctx.lineWidth = 3
                     ctx.strokeStyle = Qt.hsva(hue, 1.0, 1.0, 1.0)
 
                     for(var k = 0; k < edges.length; k++) {
@@ -136,4 +138,38 @@ Rectangle {
         }
     }
 
+    Rectangle {
+        id: controlsDivider
+        height: 5
+        color: "#404040"
+        clip: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: outputControls.top
+    }
+
+    Rectangle {
+        id: outputControls
+        height: 30
+        color: "#303030"
+        clip: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+
+        IconButton {
+            height: parent.height
+            anchors.left: parent.left
+            anchors.top: parent.top
+            width: height
+            icon: "qrc:/icons/eye.svg"
+            tooltip: "View letterbox geometry"
+            color: "#303030"
+            iconColor: canvas.drawing ? "#aaa" : "#606060"
+            onPressed: {
+                canvas.drawing = !canvas.drawing
+                canvas.requestPaint()
+            }
+        }
+    }
 }

@@ -104,7 +104,7 @@ ApplicationWindow {
 
     StackLayout {
         anchors.top: barDivider.bottom
-        anchors.bottom: viewDivider.top
+        anchors.bottom: parent.bottom
         anchors.left: bar.left
         anchors.right: bar.right
 
@@ -129,54 +129,6 @@ ApplicationWindow {
 
         onCurrentIndexChanged: {
             keyboardFocus.forceActiveFocus()
-        }
-    }
-
-    Rectangle {
-        id: viewDivider
-        height: 5
-        color: "#404040"
-        clip: true
-        anchors.left: bar.left
-        anchors.right: bar.right
-        anchors.bottom: viewControls.top
-    }
-
-    Rectangle {
-        id: viewControls
-        height: 30
-        color: "#303030"
-        clip: true
-        anchors.left: bar.left
-        anchors.right: bar.right
-        anchors.bottom: parent.bottom
-
-        IconButton {
-            height: parent.height
-            anchors.left: parent.left
-            anchors.top: parent.top
-            width: height
-            icon: "qrc:/icons/crop.svg"
-            tooltip: "Switch mode (Alt)"
-            color: "#303030"
-            iconColor: !altCropMode ? "#aaa" : "#606060"
-            onPressed: {
-                changeMode()
-            }
-        }
-
-        Row {
-            width: Math.min(parent.width, implicitWidth)
-            anchors.right: parent.right
-            Text {
-                text: sourceDimension() + " ➜ " + backend.dimension
-                rightPadding: 10
-                font.pixelSize: 15
-                font.bold: true
-                height: 30
-                color: "#c0c0c0"//sourceDimension() >= backend.dimension ? "green" : "#ba0000"
-                verticalAlignment: Text.AlignVCenter
-            }
         }
     }
     
