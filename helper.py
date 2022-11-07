@@ -12,6 +12,7 @@ import statistics
 import operator
 #import requests
 import signal
+import math
 
 from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool, QPointF
@@ -45,7 +46,7 @@ def get_metadata(image_file):
             tags = get_tags_gallerydl(g)
     return tags
 
-def get_images(images_path, staging_path):
+def get_images(images_path, staging_path, cache):
     images = []
 
     files = []
@@ -55,7 +56,7 @@ def get_images(images_path, staging_path):
     for f in files:
         m = os.path.join(staging_path, os.path.basename(f) + ".json")
 
-        img = Img(f, m)
+        img = Img(f, m, cache)
         img.readStagingData()
         if not img.ready:
             img.tags = get_metadata(f)
@@ -392,9 +393,24 @@ class CropWorker(QObject):
         if self.progress == self.finishTotal:
             self.progressCallback.emit(-1.0, "Done")
 
+class Cache:
+    def __init__(self, mx):
+        self.mx = mx
+        self.queue = []
+        self.cache = {}
+    
+    def fetch(self, file):
+        if not file in self.cache:
+            if len(self.queue) == self.mx:
+                pop = self.queue[0]
+                del self.cache[pop]
+            self.queue += [file]
+            self.cache[file] = Image.open(file).convert("RGB")
+        return self.cache[file]
 
 class Img:
-    def __init__(self, image_path, staging_path):
+    def __init__(self, image_path, staging_path, cache=None):
+        self.cache = cache
         self.source = image_path
         self.staging_path = staging_path
         self.ready = False # ready to be displayed (needs crop offsets/scale)
@@ -444,87 +460,131 @@ class Img:
     def addLetterbox(self, polygon, edges):
         self.letterboxs += [(polygon, edges)]
 
+    def computeLetterboxs(self, w, h, dim):
+        x, y = int(self.offset_x*dim), int(self.offset_y*dim)
+
+        L, T = x>0, y>0
+        R, B = x<(dim-w)-1, y<(dim-h)-1
+
+        left_x = x
+        right_x = w-1+x
+        top_y = y
+        bottom_y = h-1+y
+        d = dim - 1
+
+        self.letterboxs = []
+
+        # number of pixels to inset the edge
+        s = 0
+
+        #L,R,B,T
+        if(L and not T and not B):
+            self.addLetterbox([(0,0), (left_x,0), (left_x, d), (0, d)], [((left_x+s,s), (left_x+s, d-s))])
+        if(R and not T and not B):
+            self.addLetterbox([(d,0), (d, d), (right_x, d), (right_x,0)], [((right_x-s,s), (right_x-s, d-s))])
+        if(T and not L and not R):
+            self.addLetterbox([(0,0), (d,0), (d, top_y), (0, top_y)], [((s, top_y+s), (d-s, top_y+s))])
+        if(B and not L and not R):
+            self.addLetterbox([(0, d), (0,bottom_y), (d,bottom_y), (d, d)], [((s,bottom_y-s), (d-s,bottom_y-s))])
+
+        #TL, BL, TR, BR
+        if(L and T and not R and not B):
+            poly = [(0,0), (d,0), (d, top_y), (left_x, top_y), (left_x, d), (0, d)]
+            edges = [((left_x+s, top_y+s), (d-s, top_y+s)), ((left_x+s, top_y+s), (left_x+s, d-s))]
+            self.addLetterbox(poly, edges)
+        if(L and B and not R and not T):
+            poly = [(0,0), (left_x,0), (left_x, bottom_y), (d, bottom_y), (d, d), (0, d)]
+            edges = [((left_x+s, s), (left_x+s, bottom_y-s)), ((left_x+s, bottom_y-s), (d-s, bottom_y-s))]
+            self.addLetterbox(poly, edges)
+        if(R and T and not L and not B):
+            poly = [(0,0), (d,0), (d, d), (right_x, d), (right_x, top_y), (0, top_y)]
+            edges = [((s, top_y+s), (right_x-s, top_y+s)), ((right_x-s, top_y+s), (right_x-s, d-s))]
+            self.addLetterbox(poly, edges)
+        if(R and B and not L and not T):
+            poly = [(d,0), (d, d), (0, d), (0, bottom_y), (right_x, bottom_y), (right_x,0)]
+            edges = [((right_x-s, s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (s, bottom_y-s))]
+            self.addLetterbox(poly, edges)
+
+        #LU, TU, RU, BU
+        if(L and T and B and not R):
+            poly = [(0,0), (d,0), (d, top_y), (left_x, top_y), (left_x, bottom_y), (d, bottom_y), (d, d), (0, d)]
+            edges = [((left_x+s, top_y+s), (d-s,top_y+s)), ((left_x+s, top_y+s), (left_x+s, bottom_y-s)), ((left_x+s, bottom_y-s), (d-s, bottom_y-s))]
+            self.addLetterbox(poly, edges)
+        if(T and L and R and not B):
+            poly = [(0,0), (d,0), (d, d), (right_x, d), (right_x, top_y), (left_x, top_y), (left_x, d), (0, d)]
+            edges = [((left_x+s,d-s), (left_x+s,top_y+s)), ((left_x+s, top_y+s), (right_x-s, top_y+s)), ((right_x-s, top_y+s), (right_x-s, d-s))]
+            self.addLetterbox(poly, edges)
+        if(R and T and B and not L):
+            poly = [(0,0), (d,0), (d, d), (0, d), (0, bottom_y), (right_x, bottom_y), (right_x, top_y), (0, top_y)]
+            edges = [((s, top_y+s), (right_x-s,top_y+s)), ((right_x-s,top_y+s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (s, bottom_y-s))]
+            self.addLetterbox(poly, edges)
+        if(B and L and R and not T):
+            poly = [(0,0), (left_x,0), (left_x, bottom_y), (right_x, bottom_y), (right_x, 0), (d, 0), (d, d), (0, d)]
+            edges = [((left_x+s,s), (left_x+s,bottom_y-s)), ((left_x+s, bottom_y-s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (right_x-s, s))]
+            self.addLetterbox(poly, edges)
+
+        #All
+        dh = d//2
+        if(L and R and T and B):
+            poly = [(0,0), (d, 0), (d, d), (dh, d), (dh, bottom_y), (right_x, bottom_y), (right_x, top_y), (left_x, top_y), (left_x, bottom_y), (dh, bottom_y), (dh,d), (0,d)]
+            edges = [((left_x+s, top_y+s), (right_x-s, top_y+s)), ((right_x-s, top_y+s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (left_x+s, bottom_y-s)), ((left_x+s, bottom_y-s), (left_x+s, top_y+s))]
+            self.addLetterbox(poly, edges)
+
+    def computeEdgeColor(self, crop, center, letterbox):
+        _, edges = letterbox
+        cx, cy = center
+
+        s = 32
+        samples = []
+
+        for i in range(len(edges)):
+            a, b = edges[i]
+            ax, ay = a
+            bx, by = b
+
+            dx, dy = (bx-ax)/s, (by-ay)/s
+
+            for k in range(s):
+                x, y = int(ax+dx*k), int(ay+dy*k)
+                p = crop.getpixel((x,y))
+                samples += [p]
+
+        c = (0,0,0)
+        for d in samples:
+            c = (c[0]+d[0], c[1]+d[1], c[2]+d[2])
+        l = len(samples)
+        color = (int(c[0]//l),int(c[1]//l),int(c[2]//l))
+        var = statistics.variance([sum(d)//3 for d in samples])
+
+        return color, var
+
     def doCrop(self, dim):
-        img = Image.open(self.source).convert('RGB')
+        if self.cache:
+            img = self.cache.fetch(self.source)
+        else:
+            img = Image.open(self.source).convert('RGB')
+
         self.w, self.h = img.size[0], img.size[1]
         x, y, w, h = positionCenter(img.size[0], img.size[1], dim) 
 
         s = (w/img.size[0]) * self.scale
         img = img.resize((int(img.size[0] * s),int(img.size[1] * s)))
 
-        L, T = int(self.offset_x*dim)>0, int(self.offset_y*dim)>0
-        R, B = int(self.offset_x*dim)<(dim-img.size[0])-1, int(self.offset_y*dim)<(dim-img.size[1])-1
-
-
-        left_x = round(self.offset_x*dim,0)
-        right_x = dim-round((dim-img.size[0])-(self.offset_x*dim),0)
-        top_y = round(self.offset_y*dim,0)
-        bottom_y = dim-round((dim-img.size[1])-(self.offset_y*dim),0)
-
-        self.letterboxs = []
-
-        #L,R,B,T
-        if(L and not T and not B):
-            self.addLetterbox([(0,0), (left_x,0), (left_x, dim), (0, dim)], [((left_x,0), (left_x, dim))])
-        if(R and not T and not B):
-            self.addLetterbox([(right_x,0), (dim,0), (dim, dim), (right_x, dim)], [((right_x,0), (right_x, dim))])
-        if(T and not L and not R):
-            self.addLetterbox([(0,0), (dim,0), (dim, top_y), (0, top_y)], [((dim, top_y), (0, top_y))])
-        if(B and not L and not R):
-            self.addLetterbox([(0,bottom_y), (dim,bottom_y), (dim, dim), (0, dim)], [((0,bottom_y), (dim,bottom_y))])
-
-        #TL, BL, TR, BR
-        if(L and T and not R and not B):
-            self.addLetterbox([(0,0), (dim,0), (dim, top_y), (left_x, top_y), (left_x, dim), (0, dim)], [((left_x, top_y), (dim, top_y)), ((left_x, top_y), (left_x, dim))])
-        if(L and B and not R and not T):
-            self.addLetterbox([(0,0), (left_x,0), (left_x, bottom_y), (dim, bottom_y), (dim, dim), (0, dim)], [((left_x, 0), (left_x, bottom_y)), ((left_x, bottom_y), (dim, bottom_y))])
-        if(R and T and not L and not B):
-            self.addLetterbox([(0,0), (dim,0), (dim, dim), (right_x, dim), (right_x, top_y), (0, top_y)], [((0, top_y), (right_x, top_y)), ((right_x, top_y), (right_x, dim))])
-        if(R and B and not L and not T):
-            self.addLetterbox([(right_x,0), (dim,0), (dim, dim), (0, dim), (0, bottom_y), (right_x, bottom_y)], [((right_x, 0), (right_x, bottom_y)), ((right_x, bottom_y), (0, bottom_y))])
-
-        #LU, TU, RU, BU
-
-        if(L and T and B and not R):
-            poly = [(0,0), (dim,0), (dim, top_y), (left_x, top_y), (left_x, bottom_y), (dim, bottom_y), (dim, dim), (0, dim)]
-            edges = [((left_x, top_y), (dim,top_y)), ((left_x, top_y), (left_x, bottom_y)), ((left_x, bottom_y), (dim, bottom_y))]
-            self.addLetterbox(poly, edges)
-        if(T and L and R and not B):
-            poly = [(0,0), (dim,0), (dim, dim), (right_x, dim), (right_x, top_y), (left_x, top_y), (left_x, dim), (0, dim)]
-            edges = [((left_x,dim), (left_x,top_y)), ((left_x, top_y), (right_x, top_y)), ((right_x, top_y), (right_x, dim))]
-            self.addLetterbox(poly, edges)
-        if(R and T and B and not L):
-            poly = [(0,0), (dim,0), (dim, dim), (0, dim), (0, bottom_y), (right_x, bottom_y), (right_x, top_y), (0, top_y)]
-            edges = [((0, top_y), (right_x,top_y)), ((right_x,top_y), (right_x, bottom_y)), ((right_x, bottom_y), (0, bottom_y))]
-            self.addLetterbox(poly, edges)
-        if(B and L and R and not T):
-            poly = [(0,0), (left_x,0), (left_x, bottom_y), (right_x, bottom_y), (right_x, 0), (dim, 0), (dim, dim), (0, dim)]
-            edges = [((left_x,0), (left_x,bottom_y)), ((left_x, bottom_y), (right_x, bottom_y)), ((right_x, bottom_y), (right_x, 0))]
-            self.addLetterbox(poly, edges)
-
-        #All
-        dh = dim//2
-        if(L and R and T and B):
-            poly = [(0,0), (dim, 0), (dim, dim), (dh, dim), (dh, bottom_y), (right_x, bottom_y), (right_x, top_y), (left_x, top_y), (left_x, bottom_y), (dh, bottom_y), (dh,dim), (0,dim)]
-            edges = [((left_x, top_y), (right_x, top_y)), ((right_x, top_y), (right_x, bottom_y)), ((right_x, bottom_y), (left_x, bottom_y)), ((left_x, bottom_y), (left_x, top_y))]
-            self.addLetterbox(poly, edges)
-
-        if L or R:
-            LC, RC, LV, RV = get_edge_colors(img, True)
-        if T or B:
-            TC, BC, TV, BV = get_edge_colors(img, False)        
+        self.computeLetterboxs(img.size[0], img.size[1], dim)
 
         crop = Image.new(mode='RGB',size=(dim,dim))
         crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
+        draw = ImageDraw.Draw(crop)  
 
-        if(L and not B and not T and LV < 200):
-            ImageDraw.floodfill(crop, (0,0), LC)
-        if(R and not B and not T and RV < 200):
-            ImageDraw.floodfill(crop, (dim-1,0), RC)
-        if(T and not L and not R and TV < 200):
-            ImageDraw.floodfill(crop, (0,0), TC)
-        if(B and not L and not R and BV < 200):
-            ImageDraw.floodfill(crop, (0, dim-1), BC)
+        center = (self.offset_x*dim + img.size[0]//2, self.offset_y*dim + img.size[1]//2)
+
+        for letterbox in self.letterboxs:
+            color, var = self.computeEdgeColor(crop, center, letterbox)
+            if var < 200:
+                polygon, _ = letterbox
+                draw.polygon(polygon, fill=color)
+
+        crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
 
         return crop
 
@@ -543,7 +603,10 @@ class Img:
             crop.save(crop_file)
 
     def writeScale(self, scale_file, dim):
-        img = Image.open(self.source).convert('RGB')
+        if self.cache:
+            img = self.cache.fetch(self.source)
+        else:
+            img = Image.open(self.source).convert('RGB')
         self.w, self.h = img.size[0], img.size[1]
 
         s = dim/min(self.w, self.h)
@@ -569,7 +632,10 @@ class Img:
             shutil.copyfile(self.source, out_file)
             return
         
-        img = Image.open(self.source).convert('RGB')
+        if self.cache:
+            img = self.cache.fetch(self.source)
+        else:
+            img = Image.open(self.source).convert('RGB')
         self.w, self.h = img.size[0], img.size[1]
 
         if out_file.endswith(".jpg"):
@@ -648,6 +714,7 @@ class PreviewProvider(QQuickImageProvider):
             img = self.source.doCrop(self.dim)
             self.preview = ImageQt.ImageQt(img)
             self.last = p_str
+            
             self.signals.updated.emit()
 
         return self.preview, self.preview.size()
@@ -1366,7 +1433,9 @@ def start():
     in_folder = os.path.abspath(in_folder)
 
     # load all the images & staging data
-    images = get_images(in_folder, staging_folder)
+    cache = Cache(8)
+
+    images = get_images(in_folder, staging_folder, cache)
 
     print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
 
