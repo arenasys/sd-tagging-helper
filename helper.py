@@ -9,10 +9,7 @@ import argparse
 import platform
 import shutil
 import statistics
-import operator
-#import requests
 import signal
-import math
 
 from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool, QPointF
@@ -110,47 +107,7 @@ def tags_to_prompt(tags):
         if not t in SMILES:
             tags[i] = t.replace("_", " ")
     prompt = ", ".join(tags)
-    #prompt = re.sub(r'\([^)]*\)', '', prompt)
     return prompt
-
-def get_edge_colors(img, vertical, inset=0.00, samples=32):
-    a = (0,0,0)
-    b = (0,0,0)
-
-    inset = 2
-
-    a_s = []
-    b_s = []
-
-    if vertical:
-        for y in range(inset, img.size[1], img.size[1]//(samples-1)):
-            a_s += [img.getpixel((inset,y))]
-            b_s += [img.getpixel((img.size[0]-1-inset,y))]
-    else:
-        for x in range(inset, img.size[0], img.size[0]//(samples-1)):
-            a_s += [img.getpixel((x,inset))]
-            b_s += [img.getpixel((x,img.size[1]-1-inset))]
-
-    a_v = statistics.variance([sum(i)//3 for i in a_s])
-    b_v = statistics.variance([sum(i)//3 for i in b_s])
-
-    a_t = (0,0,0)
-    b_t = (0,0,0)
-    for i in a_s:
-        a_t = tuple(map(operator.add, a_t, i))
-    for i in b_s:
-        b_t = tuple(map(operator.add, b_t, i))
-    
-    l = len(a_s)
-
-    a_t = tuple(map(operator.floordiv, a_t, (l,l,l)))
-    b_t = tuple(map(operator.floordiv, b_t, (l,l,l)))
-
-    a_t = (int(a_t[0]),int(a_t[1]),int(a_t[2]))
-    b_t = (int(b_t[0]),int(b_t[1]),int(b_t[2]))
-
-
-    return a_t, b_t, a_v, b_v
 
 def get_tags(tag_file):
     with open(tag_file, "r", encoding="utf-8") as f:
@@ -195,21 +152,6 @@ def to_filename(base, tags):
     illegal = '<>:"/\\|?*'
     name = ''.join([c for c in tags_to_prompt(tags) if not c in illegal])
     return os.path.join(base, name)
-
-#def download(url, filename):
-#    resp = requests.get(url, stream=True)
-#    total = int(resp.headers.get('content-length', 0))
-#
-#    with open(filename, 'wb') as file, tqdm(
-#        desc=filename,
-#        total=total,
-#        unit='iB',
-#        unit_scale=True,
-#        unit_divisor=1024,
-#    ) as bar:
-#        for data in resp.iter_content(chunk_size=1024):
-#            size = file.write(data)
-#            bar.update(size)
 
 class DDBWorker(QObject):
     resultCallback = pyqtSignal(list)
@@ -466,10 +408,8 @@ class Img:
         L, T = x>0, y>0
         R, B = x<(dim-w)-1, y<(dim-h)-1
 
-        left_x = x
-        right_x = w-1+x
-        top_y = y
-        bottom_y = h-1+y
+        lx, rx  = x, w-1+x
+        ty, by = y, h-1+y
         d = dim - 1
 
         self.letterboxs = []
@@ -479,55 +419,55 @@ class Img:
 
         #L,R,B,T
         if(L and not T and not B):
-            self.addLetterbox([(0,0), (left_x,0), (left_x, d), (0, d)], [((left_x+s,s), (left_x+s, d-s))])
+            self.addLetterbox([(0,0), (lx,0), (lx, d), (0, d)], [((lx+s,s), (lx+s, d-s))])
         if(R and not T and not B):
-            self.addLetterbox([(d,0), (d, d), (right_x, d), (right_x,0)], [((right_x-s,s), (right_x-s, d-s))])
+            self.addLetterbox([(d,0), (d, d), (rx, d), (rx,0)], [((rx-s,s), (rx-s, d-s))])
         if(T and not L and not R):
-            self.addLetterbox([(0,0), (d,0), (d, top_y), (0, top_y)], [((s, top_y+s), (d-s, top_y+s))])
+            self.addLetterbox([(0,0), (d,0), (d, ty), (0, ty)], [((s, ty+s), (d-s, ty+s))])
         if(B and not L and not R):
-            self.addLetterbox([(0, d), (0,bottom_y), (d,bottom_y), (d, d)], [((s,bottom_y-s), (d-s,bottom_y-s))])
+            self.addLetterbox([(0, d), (0,by), (d,by), (d, d)], [((s,by-s), (d-s,by-s))])
 
         #TL, BL, TR, BR
         if(L and T and not R and not B):
-            poly = [(0,0), (d,0), (d, top_y), (left_x, top_y), (left_x, d), (0, d)]
-            edges = [((left_x+s, top_y+s), (d-s, top_y+s)), ((left_x+s, top_y+s), (left_x+s, d-s))]
+            poly = [(0,0), (d,0), (d, ty), (lx, ty), (lx, d), (0, d)]
+            edges = [((lx+s, ty+s), (d-s, ty+s)), ((lx+s, ty+s), (lx+s, d-s))]
             self.addLetterbox(poly, edges)
         if(L and B and not R and not T):
-            poly = [(0,0), (left_x,0), (left_x, bottom_y), (d, bottom_y), (d, d), (0, d)]
-            edges = [((left_x+s, s), (left_x+s, bottom_y-s)), ((left_x+s, bottom_y-s), (d-s, bottom_y-s))]
+            poly = [(0,0), (lx,0), (lx, by), (d, by), (d, d), (0, d)]
+            edges = [((lx+s, s), (lx+s, by-s)), ((lx+s, by-s), (d-s, by-s))]
             self.addLetterbox(poly, edges)
         if(R and T and not L and not B):
-            poly = [(0,0), (d,0), (d, d), (right_x, d), (right_x, top_y), (0, top_y)]
-            edges = [((s, top_y+s), (right_x-s, top_y+s)), ((right_x-s, top_y+s), (right_x-s, d-s))]
+            poly = [(0,0), (d,0), (d, d), (rx, d), (rx, ty), (0, ty)]
+            edges = [((s, ty+s), (rx-s, ty+s)), ((rx-s, ty+s), (rx-s, d-s))]
             self.addLetterbox(poly, edges)
         if(R and B and not L and not T):
-            poly = [(d,0), (d, d), (0, d), (0, bottom_y), (right_x, bottom_y), (right_x,0)]
-            edges = [((right_x-s, s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (s, bottom_y-s))]
+            poly = [(d,0), (d, d), (0, d), (0, by), (rx, by), (rx,0)]
+            edges = [((rx-s, s), (rx-s, by-s)), ((rx-s, by-s), (s, by-s))]
             self.addLetterbox(poly, edges)
 
         #LU, TU, RU, BU
         if(L and T and B and not R):
-            poly = [(0,0), (d,0), (d, top_y), (left_x, top_y), (left_x, bottom_y), (d, bottom_y), (d, d), (0, d)]
-            edges = [((left_x+s, top_y+s), (d-s,top_y+s)), ((left_x+s, top_y+s), (left_x+s, bottom_y-s)), ((left_x+s, bottom_y-s), (d-s, bottom_y-s))]
+            poly = [(0,0), (d,0), (d, ty), (lx, ty), (lx, by), (d, by), (d, d), (0, d)]
+            edges = [((lx+s, ty+s), (d-s,ty+s)), ((lx+s, ty+s), (lx+s, by-s)), ((lx+s, by-s), (d-s, by-s))]
             self.addLetterbox(poly, edges)
         if(T and L and R and not B):
-            poly = [(0,0), (d,0), (d, d), (right_x, d), (right_x, top_y), (left_x, top_y), (left_x, d), (0, d)]
-            edges = [((left_x+s,d-s), (left_x+s,top_y+s)), ((left_x+s, top_y+s), (right_x-s, top_y+s)), ((right_x-s, top_y+s), (right_x-s, d-s))]
+            poly = [(0,0), (d,0), (d, d), (rx, d), (rx, ty), (lx, ty), (lx, d), (0, d)]
+            edges = [((lx+s,d-s), (lx+s,ty+s)), ((lx+s, ty+s), (rx-s, ty+s)), ((rx-s, ty+s), (rx-s, d-s))]
             self.addLetterbox(poly, edges)
         if(R and T and B and not L):
-            poly = [(0,0), (d,0), (d, d), (0, d), (0, bottom_y), (right_x, bottom_y), (right_x, top_y), (0, top_y)]
-            edges = [((s, top_y+s), (right_x-s,top_y+s)), ((right_x-s,top_y+s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (s, bottom_y-s))]
+            poly = [(0,0), (d,0), (d, d), (0, d), (0, by), (rx, by), (rx, ty), (0, ty)]
+            edges = [((s, ty+s), (rx-s,ty+s)), ((rx-s,ty+s), (rx-s, by-s)), ((rx-s, by-s), (s, by-s))]
             self.addLetterbox(poly, edges)
         if(B and L and R and not T):
-            poly = [(0,0), (left_x,0), (left_x, bottom_y), (right_x, bottom_y), (right_x, 0), (d, 0), (d, d), (0, d)]
-            edges = [((left_x+s,s), (left_x+s,bottom_y-s)), ((left_x+s, bottom_y-s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (right_x-s, s))]
+            poly = [(0,0), (lx,0), (lx, by), (rx, by), (rx, 0), (d, 0), (d, d), (0, d)]
+            edges = [((lx+s,s), (lx+s,by-s)), ((lx+s, by-s), (rx-s, by-s)), ((rx-s, by-s), (rx-s, s))]
             self.addLetterbox(poly, edges)
 
         #All
         dh = d//2
         if(L and R and T and B):
-            poly = [(0,0), (d, 0), (d, d), (dh, d), (dh, bottom_y), (right_x, bottom_y), (right_x, top_y), (left_x, top_y), (left_x, bottom_y), (dh, bottom_y), (dh,d), (0,d)]
-            edges = [((left_x+s, top_y+s), (right_x-s, top_y+s)), ((right_x-s, top_y+s), (right_x-s, bottom_y-s)), ((right_x-s, bottom_y-s), (left_x+s, bottom_y-s)), ((left_x+s, bottom_y-s), (left_x+s, top_y+s))]
+            poly = [(0,0), (d, 0), (d, d), (dh, d), (dh, by), (rx, by), (rx, ty), (lx, ty), (lx, by), (dh, by), (dh,d), (0,d)]
+            edges = [((lx+s, ty+s), (rx-s, ty+s)), ((rx-s, ty+s), (rx-s, by-s)), ((rx-s, by-s), (lx+s, by-s)), ((lx+s, by-s), (lx+s, ty+s))]
             self.addLetterbox(poly, edges)
 
     def computeEdgeColor(self, crop, center, letterbox):
