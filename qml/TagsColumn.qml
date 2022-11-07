@@ -7,6 +7,7 @@ Item {
     property var altLayoutMode: false
 
     signal tagAdded()
+    signal tagDeleted()
     signal focusRelease()
     
     function addFavourites() {
@@ -15,6 +16,9 @@ Item {
             if(!backend.tags.includes(tag)) {
                 backend.addTag(tag)
                 root.tagAdded()
+            } else {
+                backend.deleteTagByName(tag)
+                root.tagDeleted()
             }
         }
     }
@@ -111,6 +115,9 @@ Item {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
                     root.tagAdded()
+                } else {
+                    backend.deleteTagByName(tag)
+                    root.tagDeleted()
                 }
             }
 
@@ -252,6 +259,9 @@ Item {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
                     root.tagAdded()
+                } else {
+                    backend.deleteTagByName(tag)
+                    root.tagDeleted()
                 }
             }
 
@@ -353,6 +363,9 @@ Item {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
                     root.tagAdded()
+                } else {
+                    backend.deleteTagByName(tag)
+                    root.tagDeleted()
                 }
             }
        

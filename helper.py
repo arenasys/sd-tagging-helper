@@ -838,6 +838,16 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
+    @pyqtSlot('QString')
+    def deleteTagByName(self, tag):
+        idx = self.current.tags.index(tag)
+        if idx < 0:
+            return
+        self.current.deleteTag(idx)
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+    
+
     @pyqtSlot(int, int)
     def moveTag(self, from_idx, to_idx):
         self.current.moveTag(from_idx, to_idx)

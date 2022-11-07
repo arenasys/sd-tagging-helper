@@ -191,6 +191,10 @@ ApplicationWindow {
         onTagAdded: {
             current.tagAdded()
         }
+        
+        onTagDeleted: {
+            current.tagDeleted()
+        }
 
         onFocusRelease: {
             keyboardFocus.forceActiveFocus()
@@ -236,6 +240,9 @@ ApplicationWindow {
 
         onTagAdded: {
             current.tagAdded()
+        }
+        onTagDeleted: {
+            current.tagDeleted()
         }
     }
 

@@ -5,6 +5,7 @@ Item {
     id: root
     
     signal tagAdded()
+    signal tagDeleted()
 
     function selectUp() {
         ddbTagsList.selectUp()
@@ -64,6 +65,9 @@ Item {
                 if(!backend.tags.includes(tag)) {
                     backend.addTag(tag)
                     root.tagAdded()
+                } else {
+                    backend.deleteTagByName(tag)
+                    root.tagDeleted()
                 }
             }
 

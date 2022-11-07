@@ -19,6 +19,10 @@ Item {
         listView.positionViewAtEnd()
     }
 
+    function tagDeleted() {
+        
+    }
+
     ListModel {
         id: listModel
         Component.onCompleted: {

@@ -19,6 +19,10 @@ Item {
         currentTagsList.tagAdded()
     }
 
+    function tagDeleted() {
+        currentTagsList.tagDeleted()
+    }
+
     Rectangle {
         id: currentLabel
         color: "#303030"
