@@ -361,6 +361,7 @@ class Img:
         self.w, self.h = None, None
         self.offset_x, self.offset_y, self.scale = None, None, None
         self.letterboxs = []
+        self.tags = []
 
     def center(self):
         if not self.w or not self.h:
@@ -603,8 +604,9 @@ class Img:
             self.ready = True
 
     def addTag(self, tag):
-        self.tags += [tag]
-        self.changed = True
+        if not tag in self.tags:
+            self.tags += [tag]
+            self.changed = True
 
     def deleteTag(self, idx):
         del self.tags[idx]
@@ -626,11 +628,12 @@ class Img:
     def fullReset(self):
         self.tags = get_metadata(self.source)
         self.prepare()
+        self.writeStagingData()
         self.changed = False
 
     def prepare(self):
-        self.center()
-        self.writeStagingData()
+        self.fill()
+        
 
 class PreviewProviderSignals(QObject):
     updated = pyqtSignal()
@@ -731,6 +734,7 @@ class Backend(QObject):
         self.ddbCurrent = -1
         self.ddbLoading = True
         self.ddbAll = False
+        self.ddbAdd = False
         self.ddbActive = self.webui_folder != None
         self.ddbThread = None
         if self.ddbActive:
@@ -764,6 +768,7 @@ class Backend(QObject):
         # so only do it on demand
         if not self.current.ready:
             self.current.prepare()
+            self.current.writeStagingData()
         
         self.setPreview()
 
@@ -1103,6 +1108,7 @@ class Backend(QObject):
         self.ddbCurrent += 1
         if self.ddbCurrent >= len(self.images):
             self.ddbAll = False
+            self.ddbAdd = False
             self.ddbCurrent = -1
             self.suggestionsUpdated.emit()
             return
@@ -1114,14 +1120,15 @@ class Backend(QObject):
             self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, 0.0, 0.0, 0.0)
         self.suggestionsUpdated.emit()
 
-    @pyqtSlot()
-    def ddbInterrogateAll(self):
+    @pyqtSlot(bool)
+    def ddbInterrogateAll(self, add):
         if not self.ddbActive:
             return
         if self.ddbLoading:
             return
         if self.ddbCurrent == -1:
             self.ddbAll = True
+            self.ddbAdd = add
             self.ddbInterrogateNext()
 
     @pyqtSlot()
@@ -1219,6 +1226,13 @@ class Backend(QObject):
     def ddbResultCallback(self, tags):
         img = self.images[self.ddbCurrent]
         img.ddb = tags
+
+        if self.ddbAdd:
+            for t in tags:
+                img.addTag(t)
+            img.writeStagingData()
+            if self.ddbCurrent == self.active:
+                self.tagsUpdated.emit()
 
         if self.ddbCurrent == self.imgIndex:
             self.showFrequent = False

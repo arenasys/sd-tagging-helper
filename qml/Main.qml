@@ -446,4 +446,16 @@ ApplicationWindow {
             }
         }
     }
+
+    /*menuBar: TopMenuBar {
+        TopMenu {
+            title: "File"
+            Action {
+                text: "Load"
+                onTriggered: {
+                    
+                }
+            }
+        }
+    }*/
 }

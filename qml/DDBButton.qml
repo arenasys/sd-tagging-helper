@@ -39,7 +39,14 @@ IconButton {
         Action {
             text: "Interrogate All?"
             onTriggered: {
-                backend.ddbInterrogateAll()
+                backend.ddbInterrogateAll(false)
+            }
+        }
+
+        Action {
+            text: "Interrogate All? (+ Add)" 
+            onTriggered: {
+                backend.ddbInterrogateAll(true)
             }
         }
 
