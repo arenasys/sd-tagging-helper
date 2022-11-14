@@ -33,7 +33,7 @@ Press the interrogate button and select the `stable-diffusion-webui` folder, thi
 An alternate layout was added for efficient tagging, switch to it with `Ctrl+L`
 
 ### Usage
-The minimal usage is to run `helper.py` or `start.bat`. The program will ask you for an input folder, which will be remembered for next time. A staging and output folder will be created in the current directory, and the output dimension will be 1024x1024. For more parameters read `python helper.py --help`.
+The minimal usage is to run `helper.py` or `start.bat`. The program will ask you for an input folder, which will be remembered for next time. A staging and output folder will be created in the input folder, and the output dimension will be 1024x1024. For more parameters read `python helper.py --help`.
 
 ### Hotkeys
 ```
