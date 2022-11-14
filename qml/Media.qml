@@ -67,7 +67,7 @@ Rectangle {
         id: full
         anchors.centerIn: view 
         asynchronous: false
-        source: "file:///" + view.source
+        source: view.source
         smooth: implicitWidth*2 < width && implicitHeight*2 < height ? false : true
         maxWidth: view.width
         maxHeight: view.height

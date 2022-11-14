@@ -147,8 +147,6 @@ PopupWindow {
             } else {
                 backend.package(imageMode.currentIndex, extMode.currentIndex, promptMode.currentIndex, threadCount.value)
             }
-
-            
         }
     }
 
@@ -158,7 +156,8 @@ PopupWindow {
         anchors.bottom: startButton.bottom
         x: startButton.x + 40
         anchors.left: promptMode.left
-        anchors.right: promptMode.right
+        anchors.right: openButton.left
+        anchors.rightMargin: 10
         height: 30
         color: "#202020"
 
@@ -183,6 +182,22 @@ PopupWindow {
             color: "white"
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
+        }
+    }
+
+    IconButton {
+        id: openButton
+        y: imageLabel.y + 120
+        anchors.top: startButton.top
+        anchors.bottom: startButton.bottom
+        anchors.right: promptMode.right
+        width: 30
+        height: 30
+        icon: "qrc:/icons/folder.svg"
+        tooltip: "Open Folder"
+        color: "#202020"
+        onPressed: {
+            backend.openOutputFolder()
         }
     }
 }

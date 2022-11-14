@@ -380,6 +380,9 @@ ApplicationWindow {
                 case Qt.Key_T:
                     backend.sortTags()
                     break
+                case Qt.Key_G:
+                    backend.toggleGlobal()
+                    break;
                 default:
                     event.accepted = false
                     break;

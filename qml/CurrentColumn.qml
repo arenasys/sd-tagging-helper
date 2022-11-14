@@ -91,7 +91,7 @@ Item {
             anchors.fill: parent
 
             function getOverlay(tag, index, model) {
-                return backend.tagExists(tag) ? "#00000000" : "#33550000"
+                return (backend.showingGlobal && tag == "•••") ? "#33ab8f00" : (backend.tagExists(tag) ? "#00000000" : "#33550000")
             }
 
             onMoved: {
@@ -99,6 +99,8 @@ Item {
             }
 
             onDoublePressed: {
+                if(backend.showingGlobal && tag == "•••")
+                    return
                 backend.deleteTag(index)
             }
 
@@ -151,6 +153,21 @@ Item {
             working: packageWindow.visible
             onPressed: {
                 root.packageWindowOpen()
+            }
+        }
+
+        IconButton {
+            id: globeButton
+            height: controls.height
+            anchors.left: packageButton.right
+            anchors.top: controls.top
+            width: height
+            icon: "qrc:/icons/globe-frame.svg"
+            tooltip: "Show Global (Ctrl+G)"
+            color: "#303030"
+            iconColor: backend.showingGlobal ? "#aaa" : "#606060"
+            onPressed: {
+                backend.toggleGlobal()
             }
         }
 

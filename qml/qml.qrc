@@ -50,5 +50,9 @@
         <file>icons/eye.svg</file>
         <file>icons/crop.svg</file>
         <file>icons/brain.svg</file>
+        <file>icons/globe.svg</file>
+        <file>icons/globe-frame.svg</file>
+        <file>icons/globe.png</file>
+        <file>icons/folder.svg</file>
     </qresource>
 </RCC>

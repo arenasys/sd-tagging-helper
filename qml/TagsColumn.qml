@@ -337,6 +337,33 @@ Item {
             onPressed: {
                 root.addFavourites()
             }
+            onContextMenu: {
+                addContextMenu.popup()
+            }
+        }
+
+        ContextMenu {
+            id: addContextMenu
+
+            Action {
+                id: prefixTags
+                text: "Add tags to start?" 
+
+                checkable: true
+                
+                onCheckedChanged: {
+                    backend.setPrefixingTags(checked)
+                    checked = backend.prefixingTags
+                }
+
+                Component.onCompleted: {
+                    checked = backend.prefixingTags
+                }
+            }
+
+            onClosed: {
+                keyboardFocus.forceActiveFocus()
+            }
         }
     }
 

@@ -16,11 +16,15 @@ Item {
     property var tagColor: ["#0879f8", "#c00004", "#fff", "#c10cad", "#00ab2c", "#fd9200", "#08f4f8"]
 
     function tagAdded() {
-        listView.positionViewAtEnd()
+        if(backend.prefixingTags) {
+            listView.positionViewAtBeginning()
+        } else {
+            listView.positionViewAtEnd()
+        }
     }
 
     function tagDeleted() {
-        
+
     }
 
     ListModel {
@@ -261,7 +265,8 @@ Item {
                     }
 
                     onEntered: {
-                        favButton.visible = true
+                        if(model.text != "•••")
+                            favButton.visible = true
                     }
 
                     onExited: {
@@ -273,7 +278,8 @@ Item {
                         target: item
 
                         function onEntered() {
-                            favButton.visible = true
+                            if(model.text != "•••")
+                                favButton.visible = true
                         }
 
                         function onExited() {
@@ -291,7 +297,7 @@ Item {
                     elide: Text.ElideRight
                     text: model.text
                     padding: 5
-                    color: backend.showingTagColors ? Qt.lighter(root.tagColor[backend.tagType(model.text)], 1.2) : "white"
+                    color: backend.showingTagColors ? backend.tagColors[backend.tagType(model.text)] : "white"
                     verticalAlignment: Text.AlignVCenter
                 }
 

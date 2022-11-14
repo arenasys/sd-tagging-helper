@@ -15,11 +15,43 @@ Menu {
         //font.bold: true
         font.pixelSize: 14
 
+        indicator: Item {
+            implicitWidth: menuItemSize
+            implicitHeight: menuItemSize
+            Rectangle {
+                width: 16
+                height: 16
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: 6
+                visible: menuItem.checkable
+                radius: 3
+                color: "#303030"
+
+                Image {
+                    id: img
+                    width: 16
+                    height: 16
+                    visible:  menuItem.checked
+                    anchors.centerIn: parent
+                    source: "qrc:/icons/tick.svg"
+                    sourceSize: Qt.size(parent.width, parent.height)
+                }
+
+                ColorOverlay {
+                    id: color
+                    visible:  menuItem.checked
+                    anchors.fill: img
+                    source: img
+                    color: "#606060"
+                }
+            }
+        }
+
         contentItem: Text {
+            leftPadding: menuItem.checkable ? menuItem.indicator.width : 0
             text: menuItem.text
             font: menuItem.font
-
-
             color: "white"
             horizontalAlignment: Text.AlignLeft
             verticalAlignment: Text.AlignVCenter

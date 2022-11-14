@@ -44,9 +44,18 @@ IconButton {
         }
 
         Action {
-            text: "Interrogate All? (+ Add)" 
-            onTriggered: {
-                backend.ddbInterrogateAll(true)
+            id: addFound
+            text: "Add found tags?" 
+
+            checkable: true
+            
+            onCheckedChanged: {
+                backend.ddbSetAdding(checked)
+                checked = backend.ddbIsAdding
+            }
+
+            Component.onCompleted: {
+                checked: backend.ddbIsAdding
             }
         }
 

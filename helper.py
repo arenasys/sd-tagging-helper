@@ -13,6 +13,7 @@ import signal
 
 from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool, QPointF
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtQml import QQmlApplicationEngine
 from PyQt5.QtWidgets import QFileDialog, QApplication
 from PyQt5.QtQuick import QQuickImageProvider
@@ -23,6 +24,7 @@ CONFIG = "config.json"
 EXT = [".png", ".jpg", ".jpeg", ".webp"]
 MX_TAGS = 30
 SMILES = ["0_0","(o)_(o)","+_+","+_-","._.","<o>_<o>","<|>_<|>","=_=",">_<","3_3","6_9",">_o","@_@","^_^","o_o","u_u","x_x","|_|","||_||"]
+ELLIPSIS = "•••"
 
 MX_FILE = 250
 MX_PATH = 4000
@@ -43,7 +45,7 @@ def get_metadata(image_file):
             tags = get_tags_gallerydl(g)
     return tags
 
-def get_images(images_path, staging_path, cache):
+def get_images(images_path, staging_path):
     images = []
 
     files = []
@@ -51,9 +53,13 @@ def get_images(images_path, staging_path, cache):
         files += glob.glob(images_path + "/*" + e)
 
     for f in files:
+        old_m = os.path.join("staging", os.path.basename(f) + ".json")
         m = os.path.join(staging_path, os.path.basename(f) + ".json")
+        if os.path.exists(old_m) and not os.path.exists(m):
+            print(f"INFO: migrating {old_m} to {m}")
+            shutil.copy(old_m, m)
 
-        img = Img(f, m, cache)
+        img = Img(f, m)
         img.readStagingData()
         if not img.ready:
             img.tags = get_metadata(f)
@@ -351,8 +357,9 @@ class Cache:
         return self.cache[file]
 
 class Img:
-    def __init__(self, image_path, staging_path, cache=None):
-        self.cache = cache
+    def __init__(self, image_path, staging_path):
+        self.cache = None
+        self.globals = None
         self.source = image_path
         self.staging_path = staging_path
         self.ready = False # ready to be displayed (needs crop offsets/scale)
@@ -530,7 +537,10 @@ class Img:
         return crop
 
     def buildPrompt(self):
-        return tags_to_prompt(self.tags)
+        if self.globals:
+            return tags_to_prompt(self.globals.composite(self.tags))
+        else:
+            return tags_to_prompt(self.tags)
 
     def writeCrop(self, crop_file, dim):
         if not self.ready:
@@ -589,7 +599,13 @@ class Img:
             f.write(self.buildPrompt())
         
     def writePromptJson(self, prompt_file):
-        put_json({"tags": self.tags}, prompt_file)
+        tags = []
+        if self.globals:
+            tags = self.globals.composite(self.tags)
+        else:
+            tags = self.tags
+
+        put_json({"tags": tags}, prompt_file)
 
     def setCrop(self, x, y, s):
         if(self.ready and x == self.offset_x and y == self.offset_y and s == self.scale):
@@ -603,9 +619,12 @@ class Img:
         else:
             self.ready = True
 
-    def addTag(self, tag):
+    def addTag(self, tag, prefix=False):
         if not tag in self.tags:
-            self.tags += [tag]
+            if prefix:
+                self.tags.insert(0, tag)
+            else:
+                self.tags.append(tag)
             self.changed = True
 
     def deleteTag(self, idx):
@@ -662,6 +681,52 @@ class PreviewProvider(QQuickImageProvider):
 
         return self.preview, self.preview.size()
 
+class Globals():
+    def __init__(self, config):
+        self.config_path = config
+        self.tags = [ELLIPSIS]
+        self.changed = False
+
+        self.readStagingData()
+
+    def composite(self, input):
+        i = self.tags.index(ELLIPSIS)
+        a, b = self.tags[:i], self.tags[i+1:]
+        a = [t for t in a if not t in input]
+        b = [t for t in b if not t in input]
+        output = a + input + b
+        return output
+    
+    def addTag(self, tag, prefix=False):
+        if not tag in self.tags:
+            if prefix:
+                self.tags.insert(0, tag)
+            else:
+                self.tags.append(tag)
+            self.changed = True
+
+    def deleteTag(self, idx):
+        del self.tags[idx]
+        self.changed = True
+    
+    def moveTag(self, from_idx, to_idx):
+        self.tags.insert(to_idx, self.tags.pop(from_idx))
+        self.changed = True
+    
+    def buildPrompt(self):
+        return tags_to_prompt(self.tags)
+
+    def writeStagingData(self):
+        data = {"tags": self.tags}
+        put_json(data, self.config_path, False)
+        self.changed = False
+    
+    def readStagingData(self):
+        if not os.path.isfile(self.config_path):
+            self.tags = [ELLIPSIS]
+            return
+        data = get_json(self.config_path)
+        self.tags = data["tags"]
 
 class Backend(QObject):
     updated = pyqtSignal()
@@ -683,13 +748,33 @@ class Backend(QObject):
     ddbWorkerUpdated = pyqtSignal()
     ddbWorkerInterrogate = pyqtSignal(int, 'QString', bool, float, float, float)
 
-    def __init__(self, images, tags_file, out_folder, webui_folder, dimension, parent=None):
+    def __init__(self, in_folder, staging_folder, out_folder, tags_file, webui_folder, dimension, parent=None):
         super().__init__(parent)
 
-        # general state
-        self.images = images
-        self.dim = dimension
+        self.in_folder = in_folder
+        self.staging_folder = staging_folder
+        self.out_folder = out_folder
         self.webui_folder = webui_folder
+
+        self.cache = Cache(8)
+        self.globals = Globals(os.path.join(staging_folder, CONFIG))
+
+        # load all the images & staging data
+        self.images = get_images(in_folder, staging_folder)
+        print(f"STATUS: loaded {len(self.images)} images, {len([i for i in self.images if i.tags])} have tags")
+        if len(self.images) == 0:
+            print(f"ERROR: no images found!")
+            exit(1)
+
+        for i in self.images:
+            i.cache = self.cache
+            i.globals = self.globals
+
+
+        # general state
+        self.dim = dimension
+        self.isShowingGlobal = False
+        self.isPrefixingTags = False
 
         # global tag list
         self.tags_file = tags_file
@@ -700,7 +785,7 @@ class Backend(QObject):
         self.tagIndex = [t[0] for t in tags]
 
         # GUI state
-        self.tagColors = False
+        self.isShowingTagColors = False
         self.currentSearch = ""
         self.searchResults = []
         self.listIndex = 0
@@ -708,7 +793,7 @@ class Backend(QObject):
         self.current = self.images[self.imgIndex]
         self.fav = []
         self.freq = {}
-        self.showFrequent = True
+        self.isShowingFrequent = True
         self.previewProvider = PreviewProvider()
         self.previewProvider.signals.updated.connect(self.previewCallback)
         self.previewCount = 0
@@ -758,8 +843,9 @@ class Backend(QObject):
         self.setActive(a % len(self.images))
     
     def setActive(self, a):
-        if a == self.imgIndex:
+        if self.isShowingGlobal:
             return
+
         self.imgIndex = a
         self.current = self.images[self.imgIndex]
 
@@ -773,8 +859,11 @@ class Backend(QObject):
         self.setPreview()
 
         if not self.current.ddb:
-            self.showFrequent = True
+            self.isShowingFrequent = True
+
+        self.doUpdate()
         
+    def doUpdate(self):
         self.changedUpdated.emit()
         self.imageUpdated.emit()
         self.tagsUpdated.emit()
@@ -783,7 +872,9 @@ class Backend(QObject):
 
     @pyqtProperty('QString', notify=updated)
     def source(self):
-        return self.current.source
+        if self.isShowingGlobal:
+            return "qrc:/icons/globe.png"
+        return "file:///" + self.current.source
     
     @pyqtProperty(bool, notify=changedUpdated)
     def changed(self):
@@ -791,14 +882,20 @@ class Backend(QObject):
     
     @pyqtProperty(float, notify=imageUpdated)
     def offset_x(self):
+        if self.isShowingGlobal:
+            return 0
         return self.current.offset_x
     
     @pyqtProperty(float, notify=imageUpdated)
     def offset_y(self):
+        if self.isShowingGlobal:
+            return 0
         return self.current.offset_y
     
     @pyqtProperty(float, notify=imageUpdated)
     def scale(self):
+        if self.isShowingGlobal:
+            return 1
         return self.current.scale
 
     @pyqtProperty(int, notify=updated)
@@ -807,6 +904,8 @@ class Backend(QObject):
 
     @pyqtProperty('QString', notify=imageUpdated)
     def preview(self):
+        if self.isShowingGlobal:
+            return "qrc:/icons/globe.png"
         return f"image://preview/{self.previewCount}.png"
     
     @pyqtProperty('QString', notify=tagsUpdated)
@@ -835,6 +934,8 @@ class Backend(QObject):
     
     @pyqtProperty('QString', notify=updated)
     def title(self):
+        if self.isShowingGlobal:
+            return "Tagging Global"
         return f"Tagging {self.imgIndex+1} of {len(self.images)}"
     
     @pyqtProperty(list, notify=favUpdated)
@@ -849,6 +950,8 @@ class Backend(QObject):
     
     @pyqtProperty(list, notify=suggestionsUpdated)
     def ddb(self):
+        if self.isShowingGlobal:
+            return []
         return self.current.ddb
     
     @pyqtProperty(int, notify=suggestionsUpdated)
@@ -871,11 +974,11 @@ class Backend(QObject):
     
     @pyqtProperty(bool, notify=suggestionsUpdated)
     def showingFrequent(self):
-        return self.showFrequent
+        return self.isShowingFrequent
 
     @pyqtProperty(bool, notify=updated)
     def showingTagColors(self):
-        return self.tagColors
+        return self.isShowingTagColors
 
     @pyqtProperty(int, notify=listEvent)
     def activeList(self):
@@ -891,6 +994,9 @@ class Backend(QObject):
 
     @pyqtProperty(list, notify=previewUpdated)
     def letterboxs(self):
+        if self.isShowingGlobal:
+            return []
+        
         out = []
         for p, e in self.current.letterboxs:
             p = [QPointF(*v) for v in p]
@@ -898,13 +1004,25 @@ class Backend(QObject):
             out += [[p,e]]
         return out
 
+    @pyqtProperty(bool, notify=updated)
+    def showingGlobal(self):
+        return self.isShowingGlobal
+
+    @pyqtProperty(bool, notify=updated)
+    def ddbIsAdding(self):
+        return self.ddbAdd
+
+    @pyqtProperty(bool, notify=updated)
+    def prefixingTags(self):
+        return self.isPrefixingTags
+
     ### Slots
 
     @pyqtSlot('QString')
     def addTag(self, tag):
         if tag in self.current.tags:
             return
-        self.current.addTag(tag)
+        self.current.addTag(tag, self.isPrefixingTags)
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
 
@@ -941,6 +1059,9 @@ class Backend(QObject):
 
     @pyqtSlot(int,int,int,int,int,int)
     def applyCrop(self, fx, fy, fw, fh, cw, ch):
+        if self.isShowingGlobal:
+            return
+
         x, y, w, h = positionCenter(fw, fh, cw)
         self.current.setCrop(fx/cw, fy/cw, fw/w)
 
@@ -956,18 +1077,24 @@ class Backend(QObject):
 
     @pyqtSlot()
     def center(self):
+        if self.isShowingGlobal:
+            return
         self.current.center()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
     
     @pyqtSlot()
     def fill(self):
+        if self.isShowingGlobal:
+            return
         self.current.fill()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
     @pyqtSlot()
     def writeDebugCrop(self):
+        if self.isShowingGlobal:
+            return
         self.current.writeCrop("out.png", self.dim)
 
     @pyqtSlot()
@@ -1011,7 +1138,7 @@ class Backend(QObject):
     
     @pyqtSlot()
     def toggleTagColors(self):
-        self.tagColors = not self.tagColors
+        self.isShowingTagColors = not self.isShowingTagColors
         self.updated.emit()
         self.saveConfig()
 
@@ -1029,6 +1156,8 @@ class Backend(QObject):
 
     @pyqtSlot()
     def cleanTags(self):
+        if self.isShowingGlobal:
+            return
         tags = [t for t in self.current.tags if t in self.tagLookup]
         self.current.setTags(tags)
         self.tagsUpdated.emit()
@@ -1037,6 +1166,8 @@ class Backend(QObject):
 
     @pyqtSlot()
     def sortTags(self):
+        if self.isShowingGlobal:
+            return
         tags = [t for t in self.tagIndex if t in self.current.tags]
         tags += [t for t in self.current.tags if not t in tags]
         self.current.setTags(tags)
@@ -1046,6 +1177,8 @@ class Backend(QObject):
 
     @pyqtSlot()
     def fullReset(self):
+        if self.isShowingGlobal:
+            return
         self.current.fullReset()
         self.imageUpdated.emit()
         self.tagsUpdated.emit()
@@ -1081,6 +1214,9 @@ class Backend(QObject):
 
     @pyqtSlot()
     def ddbInterrogate(self):
+        if self.isShowingGlobal:
+            return
+
         if not self.ddbActive:
             self.webui_folder = str(QFileDialog.getExistingDirectory(None, "Select WebUI Folder"))
             if not self.webui_folder:
@@ -1094,8 +1230,8 @@ class Backend(QObject):
         if self.ddbLoading:
             return
 
-        if(self.current.ddb):
-            self.showFrequent = False
+        if self.current.ddb:
+            self.isShowingFrequent = False
 
         if self.ddbCurrent == -1:
             self.ddbCurrent = self.imgIndex
@@ -1108,7 +1244,6 @@ class Backend(QObject):
         self.ddbCurrent += 1
         if self.ddbCurrent >= len(self.images):
             self.ddbAll = False
-            self.ddbAdd = False
             self.ddbCurrent = -1
             self.suggestionsUpdated.emit()
             return
@@ -1120,25 +1255,30 @@ class Backend(QObject):
             self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, 0.0, 0.0, 0.0)
         self.suggestionsUpdated.emit()
 
-    @pyqtSlot(bool)
-    def ddbInterrogateAll(self, add):
+    @pyqtSlot()
+    def ddbInterrogateAll(self):
         if not self.ddbActive:
             return
         if self.ddbLoading:
             return
         if self.ddbCurrent == -1:
             self.ddbAll = True
-            self.ddbAdd = add
             self.ddbInterrogateNext()
+
+    @pyqtSlot(bool)
+    def ddbSetAdding(self, adding):
+        print(adding)
+        self.ddbAdd = adding
+        self.updated.emit()
 
     @pyqtSlot()
     def showFrequent(self):
-        self.showFrequent = True
+        self.isShowingFrequent = True
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
     def showDDB(self):
-        self.showFrequent = False
+        self.isShowingFrequent = False
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
@@ -1203,6 +1343,28 @@ class Backend(QObject):
 
         self.tagsUpdated.emit()
         self.search(self.currentSearch)
+    
+    @pyqtSlot()
+    def toggleGlobal(self):
+        self.isShowingGlobal = not self.isShowingGlobal
+
+        if self.isShowingGlobal:
+            self.current = self.globals
+            self.doUpdate()
+        else:
+            self.globals.writeStagingData()
+            self.setActive(self.imgIndex)
+            self.doUpdate()
+        
+    @pyqtSlot(bool)
+    def setPrefixingTags(self, prefixing):
+        self.isPrefixingTags = prefixing
+        self.updated.emit()
+        self.saveConfig()
+
+    @pyqtSlot()
+    def openOutputFolder(self):
+        QDesktopServices.openUrl(QUrl(f"file:///{self.out_folder}"))
 
     ## Callbacks
 
@@ -1235,7 +1397,7 @@ class Backend(QObject):
                 self.tagsUpdated.emit()
 
         if self.ddbCurrent == self.imgIndex:
-            self.showFrequent = False
+            self.isShowingFrequent = False
 
         if self.ddbAll:
             self.ddbInterrogateNext()
@@ -1294,19 +1456,20 @@ class Backend(QObject):
         if 'webui' in j and self.webui_folder == None:
             self.webui_folder = j["webui"]
         if 'colors' in j:
-            self.tagColors = j["colors"]
+            self.isShowingTagColors = j["colors"]
+        if 'prefixing' in j:
+            self.isPrefixingTags = j['prefixing']
 
     def saveConfig(self):
-        put_json({"fav": self.fav, "freq": self.freq, "webui": self.webui_folder, "colors": self.tagColors}, CONFIG)
-    
-
+        put_json({"fav": self.fav, "freq": self.freq, "webui": self.webui_folder,
+                  "colors": self.isShowingTagColors, "prefixing": self.isPrefixingTags}, CONFIG)
 
 def start():
     parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
     parser.add_argument('--input', type=str, help='folder to load images with optional associated tag file (eg: img.png, img.png.txt)')
     parser.add_argument('--dimension', type=int, help='dimension of output images. defaults to 1024x1024')
-    parser.add_argument('--staging', type=str, help='folder to stage changes for each image. defaults to "staging"')
-    parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "output"')
+    parser.add_argument('--staging', type=str, help='folder to stage changes for each image. defaults to "input/staging"')
+    parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "input/output"')
     parser.add_argument('--tags', type=str, help='optional tag index file. defaults to danbooru tags')
     parser.add_argument('--webui', type=str, help='optional path to stable-diffusion-webui. enables the use of deepdanbooru')
     args = parser.parse_args()
@@ -1317,51 +1480,6 @@ def start():
     staging_folder = args.staging
     tags_file = args.tags
     webui_folder = args.webui
-
-    # check all the args, make sure they point to real folders/files, create default folders, etc
-    if in_folder and not os.path.isdir(in_folder):
-        print(f"ERROR: input folder '{in_folder}' does not exist!")
-        exit(1)
-
-    if not out_folder:
-        out_folder = "output"
-        if not os.path.exists(out_folder):
-            os.makedirs(out_folder)
-    if not os.path.isdir(out_folder):
-        print(f"ERROR: output folder '{out_folder}' does not exist!")
-        exit(1)
-    out_folder = os.path.abspath(out_folder)
-
-    if not staging_folder:
-        staging_folder = "staging"
-
-        #migrate old default folder
-        if os.path.exists("metadata") and not os.path.exists("staging"):
-            os.rename("metadata", "staging")
-
-        if not os.path.exists(staging_folder):
-            os.makedirs(staging_folder)
-    if not os.path.isdir(staging_folder):
-        print(f"ERROR: staging folder '{staging_folder}' does not exist!")
-        exit(1)
-    staging_folder = os.path.abspath(staging_folder)
-    
-    if webui_folder and not os.path.isdir(webui_folder):
-        print(f"ERROR: webui folder '{webui_folder}' does not exist!")
-        exit(1)
-    if webui_folder:
-        webui_folder = os.path.abspath(webui_folder)
-
-    if not tags_file:
-        tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
-    if not os.path.isfile(tags_file):
-        print(f"ERROR: tags file '{tags_file}' does not exist!")
-        exit(1)
-
-    if not dim:
-        dim = 1024
-    if dim % 32 != 0 or dim <= 0:
-        print(f"ERROR: dimension of '{dim}' is not valid!")
 
     QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
@@ -1386,19 +1504,49 @@ def start():
             put_json({"in_folder": in_folder}, CONFIG)
     in_folder = os.path.abspath(in_folder)
 
-    # load all the images & staging data
-    cache = Cache(8)
-
-    images = get_images(in_folder, staging_folder, cache)
-
-    print(f"STATUS: loaded {len(images)} images, {len([i for i in images if i.tags])} have tags")
-
-    if len(images) == 0:
-        print(f"ERROR: no images found!")
+    # check all the args, make sure they point to real folders/files, create default folders, etc
+    if in_folder and not os.path.isdir(in_folder):
+        print(f"ERROR: input folder '{in_folder}' does not exist!")
         exit(1)
+
+    if not out_folder:
+        out_folder = os.path.join(in_folder, "output")
+        if not os.path.exists(out_folder):
+            os.makedirs(out_folder)
+
+    if not os.path.isdir(out_folder):
+        print(f"ERROR: output folder '{out_folder}' does not exist!")
+        exit(1)
+    out_folder = os.path.abspath(out_folder)
+
+    if not staging_folder:
+        staging_folder = os.path.join(in_folder, "staging")
+        if not os.path.exists(staging_folder):
+            os.makedirs(staging_folder)
+    if not os.path.isdir(staging_folder):
+        print(f"ERROR: staging folder '{staging_folder}' does not exist!")
+        exit(1)
+    staging_folder = os.path.abspath(staging_folder)
+    
+    if webui_folder and not os.path.isdir(webui_folder):
+        print(f"ERROR: webui folder '{webui_folder}' does not exist!")
+        exit(1)
+    if webui_folder:
+        webui_folder = os.path.abspath(webui_folder)
+
+    if not tags_file:
+        tags_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "danbooru.csv")
+    if not os.path.isfile(tags_file):
+        print(f"ERROR: tags file '{tags_file}' does not exist!")
+        exit(1)
+
+    if not dim:
+        dim = 1024
+    if dim % 32 != 0 or dim <= 0:
+        print(f"ERROR: dimension of '{dim}' is not valid!")
     
     # spin up the GUI
-    backend = Backend(images, tags_file, out_folder, webui_folder, dim, parent=app)
+    backend = Backend(in_folder, staging_folder, out_folder, tags_file, webui_folder, dim, parent=app)
 
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", backend.previewProvider)

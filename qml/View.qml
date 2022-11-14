@@ -39,7 +39,7 @@ Rectangle {
         
         Media {
             id: media
-            locked: view.mode
+            locked: view.mode || backend.showingGlobal
             source: backend.source
             anchors.fill: crop
             ox: backend.offset_x
@@ -65,7 +65,7 @@ Rectangle {
 
         Rectangle {
             id: crop
-            visible: !view.mode
+            visible: !view.mode && !backend.showingGlobal
             color: "#00000000"
             anchors.centerIn: parent
             width: Math.min(parent.width, parent.height)
@@ -143,7 +143,7 @@ Rectangle {
 
         Rectangle {
             id: cropAlt
-            visible: view.mode
+            visible: view.mode && !backend.showingGlobal
             color: "#00000000"
             height: width
 
@@ -168,7 +168,7 @@ Rectangle {
 
         MouseArea {
             anchors.fill: parent
-            enabled: view.mode
+            enabled: cropAlt.visible
             property var target: cropAlt
             property var startX: 0
             property var startY: 0

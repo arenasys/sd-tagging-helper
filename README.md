@@ -24,6 +24,9 @@ There are two modes of cropping, you can freely change between them with `Alt`. 
 
 When ready the inputs can be packaged into the output folder, various packaging options are available.
 
+### Global
+Tags can be applied to every image via the global image. It can be accessed with the globe button or `Ctrl+G`. The epsilon `•••` tag represents the unique tags of each image, so placing a tag before the epsilon will prefix all images with that tag. The output tab will show the prompt with the global tags applied.
+
 ### DeepDanbooru
 Assumes you have a working instance of [stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with DeepDanbooru working.
 Press the interrogate button and select the `stable-diffusion-webui` folder, this will be saved for next session.
@@ -48,6 +51,7 @@ Ctrl + K - Toggle tag colors
 Ctrl + Q - Interrogate image via DeepDanbooru
 Ctrl + R - Remove unknown tag
 Ctrl + T - Sort tag by popularity
+Ctrl + G - View global image
 
 Left  - Previous image
 Right - Next image
