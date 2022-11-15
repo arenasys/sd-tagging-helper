@@ -339,10 +339,10 @@ ApplicationWindow {
                     save()
                     break;
                 case Qt.Key_A:
-                    backend.center()
+                    backend.contain()
                     break;
                 case Qt.Key_D:
-                    backend.fill()
+                    backend.center()
                     break;
                 case Qt.Key_E:
                     save()
@@ -382,6 +382,9 @@ ApplicationWindow {
                     break
                 case Qt.Key_G:
                     backend.toggleGlobal()
+                    break;
+                case Qt.Key_P:
+                    packageWindow.open()
                     break;
                 default:
                     event.accepted = false
@@ -450,15 +453,28 @@ ApplicationWindow {
         }
     }
 
-    /*menuBar: TopMenuBar {
-        TopMenu {
-            title: "File"
-            Action {
-                text: "Load"
-                onTriggered: {
-                    
-                }
-            }
+    menuBar: WindowBar {
+        altCropMode: !root.altCropMode
+        altLayoutMode: root.altLayoutMode
+        onPackageWindowOpen: {
+            packageWindow.open()
         }
-    }*/
+        onChangeLayout: {
+            root.changeLayout()
+        }
+        onChangeCrop: {
+            root.changeMode()
+        }
+        onInterrogate: {
+            root.save()
+            backend.ddbInterrogate()
+        }
+        onInterrogateAll: {
+            root.save()
+            backend.ddbInterrogateAll()
+        }
+        onSave: {
+            root.save()
+        }
+    }
 }

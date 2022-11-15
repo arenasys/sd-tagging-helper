@@ -22,8 +22,11 @@ Rectangle {
             anchors.centerIn: parent
             asynchronous: true
             source: output.visible ? backend.preview : ""
-            maxWidth: parent.width
-            maxHeight: parent.height
+            maxWidth: Math.min(parent.width, backend.dimension)
+            maxHeight: Math.min(parent.height, backend.dimension)
+
+            smooth: implicitWidth <= backend.dimension || implicitHeight <= backend.dimension ? true : false
+
             fill: true
 
             onStatusChanged: {
@@ -49,7 +52,7 @@ Rectangle {
                 
                 ctx.lineWidth = 1
 
-                var s = width/1024
+                var s = width/backend.dimension
 
                 for(var i = 0; i < l.length; i++) {
                     var letterbox = l[i]
@@ -88,24 +91,13 @@ Rectangle {
     }
 
     Rectangle {
-        id: previewDivider
-        height: 5
-        color: "#404040"
-        clip: true
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: promptBox.top
-    }
-
-    Rectangle {
         id: promptBox
         color: "#202020"
 
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        
-        height: parent.height * (1/3)
+        anchors.top: previewDivider.bottom
 
         clip: true
 
@@ -135,6 +127,38 @@ Rectangle {
                 color: "#ccc"
                 text: backend.prompt
             }
+        }
+    }
+
+    Rectangle {
+        id: previewDivider
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 5
+
+        y: parent.height - offset
+
+        property var offset: 0
+        property int minY: 40
+        property int maxY: parent.height-80
+        color: "#404040"
+
+        Component.onCompleted: {
+            offset = 200
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onPositionChanged: {
+                if(pressedButtons) {
+                    previewDivider.offset = Math.max(previewDivider.minY, Math.min(previewDivider.maxY, output.height - (previewDivider.y + mouseY)))
+                }
+            }
+        }
+
+        onMaxYChanged: {
+            previewDivider.offset = Math.max(previewDivider.minY, Math.min(previewDivider.maxY, previewDivider.offset))
         }
     }
 

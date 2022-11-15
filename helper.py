@@ -10,6 +10,7 @@ import platform
 import shutil
 import statistics
 import signal
+import subprocess
 
 from PIL import Image, ImageDraw, ImageQt
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool, QPointF
@@ -67,7 +68,7 @@ def get_images(images_path, staging_path):
 
     return images
 
-def positionCenter(w, h, d):
+def positionContain(w, h, d):
     if w > h:
         w,h = d, (h/w)*d
     else:
@@ -76,7 +77,7 @@ def positionCenter(w, h, d):
     y = int((d-h)/2)
     return x, y, w, h
 
-def positionFill(w, h, d):
+def positionCenter(w, h, d):
     if w < h:
         w,h = d, (h/w)*d
     else:
@@ -370,19 +371,19 @@ class Img:
         self.letterboxs = []
         self.tags = []
 
+    def contain(self):
+        if not self.w or not self.h:
+            with Image.open(self.source) as img:
+                self.w, self.h = img.size
+        x, y, w, h = positionContain(self.w, self.h, 1024)
+        self.setCrop(x/1024, y/1024, 1.0)
+
     def center(self):
         if not self.w or not self.h:
             with Image.open(self.source) as img:
                 self.w, self.h = img.size
         x, y, w, h = positionCenter(self.w, self.h, 1024)
-        self.setCrop(x/1024, y/1024, 1.0)
-
-    def fill(self):
-        if not self.w or not self.h:
-            with Image.open(self.source) as img:
-                self.w, self.h = img.size
-        x, y, w, h = positionFill(self.w, self.h, 1024)
-        _, _, w2, _ = positionCenter(self.w, self.h, 1024)
+        _, _, w2, _ = positionContain(self.w, self.h, 1024)
         self.setCrop(x/1024, y/1024, w/w2)
         
     def readStagingData(self):
@@ -423,7 +424,7 @@ class Img:
         self.letterboxs = []
 
         # number of pixels to inset the edge
-        s = 0
+        s = 1
 
         #L,R,B,T
         if(L and not T and not B):
@@ -492,7 +493,7 @@ class Img:
 
             dx, dy = (bx-ax)/s, (by-ay)/s
 
-            for k in range(s):
+            for k in range(1,s):
                 x, y = int(ax+dx*k), int(ay+dy*k)
                 p = crop.getpixel((x,y))
                 samples += [p]
@@ -513,10 +514,11 @@ class Img:
             img = Image.open(self.source).convert('RGB')
 
         self.w, self.h = img.size[0], img.size[1]
-        x, y, w, h = positionCenter(img.size[0], img.size[1], dim) 
+        x, y, w, h = positionContain(img.size[0], img.size[1], dim) 
 
         s = (w/img.size[0]) * self.scale
-        img = img.resize((int(img.size[0] * s),int(img.size[1] * s)))
+
+        img = img.resize((int(round(img.size[0] * s)),int(round(img.size[1] * s))))
 
         self.computeLetterboxs(img.size[0], img.size[1], dim)
 
@@ -532,7 +534,7 @@ class Img:
                 polygon, _ = letterbox
                 draw.polygon(polygon, fill=color)
 
-        crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
+        #crop.paste(img, (int(self.offset_x*dim), int(self.offset_y*dim)))
 
         return crop
 
@@ -544,7 +546,7 @@ class Img:
 
     def writeCrop(self, crop_file, dim):
         if not self.ready:
-            self.fill()
+            self.center()
 
         crop = self.doCrop(dim)
 
@@ -641,7 +643,7 @@ class Img:
 
     def reset(self):
         if not self.readStagingData():
-            self.fill()
+            self.center()
         self.changed = False
     
     def fullReset(self):
@@ -651,7 +653,7 @@ class Img:
         self.changed = False
 
     def prepare(self):
-        self.fill()
+        self.center()
         
 
 class PreviewProviderSignals(QObject):
@@ -662,7 +664,7 @@ class PreviewProvider(QQuickImageProvider):
         super(PreviewProvider, self).__init__(QQuickImageProvider.Image)
         self.preview = None
         self.source = None
-        self.dim = 1024
+        self.dim = 0
         self.count = 0
         self.last = None
         self.signals = PreviewProviderSignals()
@@ -717,16 +719,17 @@ class Globals():
         return tags_to_prompt(self.tags)
 
     def writeStagingData(self):
-        data = {"tags": self.tags}
-        put_json(data, self.config_path, False)
+        data = {"global": self.tags}
+        put_json(data, self.config_path)
         self.changed = False
     
     def readStagingData(self):
+        self.tags = [ELLIPSIS]
         if not os.path.isfile(self.config_path):
-            self.tags = [ELLIPSIS]
             return
-        data = get_json(self.config_path)
-        self.tags = data["tags"]
+        cfg = get_json(self.config_path)
+        if "global" in cfg:
+            self.tags = cfg["global"]
 
 class Backend(QObject):
     updated = pyqtSignal()
@@ -748,31 +751,19 @@ class Backend(QObject):
     ddbWorkerUpdated = pyqtSignal()
     ddbWorkerInterrogate = pyqtSignal(int, 'QString', bool, float, float, float)
 
-    def __init__(self, in_folder, staging_folder, out_folder, tags_file, webui_folder, dimension, parent=None):
+    def __init__(self, in_folder, tags_file, webui_folder, parent=None):
         super().__init__(parent)
-
-        self.in_folder = in_folder
-        self.staging_folder = staging_folder
-        self.out_folder = out_folder
-        self.webui_folder = webui_folder
-
         self.cache = Cache(8)
-        self.globals = Globals(os.path.join(staging_folder, CONFIG))
 
-        # load all the images & staging data
-        self.images = get_images(in_folder, staging_folder)
-        print(f"STATUS: loaded {len(self.images)} images, {len([i for i in self.images if i.tags])} have tags")
-        if len(self.images) == 0:
-            print(f"ERROR: no images found!")
-            exit(1)
+        # crop worker & state
+        self.cropThread = QThread(self)
+        self.cropWorker = None
 
-        for i in self.images:
-            i.cache = self.cache
-            i.globals = self.globals
+        self.setInputFolder(in_folder, True)
 
-
+        self.webui_folder = webui_folder
+        
         # general state
-        self.dim = dimension
         self.isShowingGlobal = False
         self.isPrefixingTags = False
 
@@ -790,7 +781,7 @@ class Backend(QObject):
         self.searchResults = []
         self.listIndex = 0
         self.imgIndex = -1
-        self.current = self.images[self.imgIndex]
+        self.current = None
         self.fav = []
         self.freq = {}
         self.isShowingFrequent = True
@@ -800,19 +791,12 @@ class Backend(QObject):
         self.previewPrompt = ""
         self.previewVisible = False
         self.cycleDelta = None
+        self.setActive(0)
 
         # GUI init
-        self.setActive(0)
         self.search("")        
         self.loadConfig()
         self.saveConfig()
-        
-        # crop worker & state
-        self.cropWorker = CropWorker(self.images, out_folder, self.dim)
-        self.cropWorkerActive = False
-        self.cropWorkerProgress = 0.0
-        self.cropWorkerStatus = ""
-        self.cropInit()
 
         # ddb worker & state
         self.ddbWorker = DDBWorker()
@@ -827,6 +811,75 @@ class Backend(QObject):
 
         # clean up ddb thread
         parent.aboutToQuit.connect(self.closing)
+
+    def load(self):
+        self.in_config = os.path.join(self.in_folder, CONFIG)
+        in_cfg = get_json(self.in_config)
+
+        self.out_folder = None
+        self.staging_folder = None
+        self.dim = None
+
+        if "output" in in_cfg:
+            self.out_folder = in_cfg["output"]
+        if "staging" in in_cfg:
+            self.staging_folder = in_cfg["staging"]
+        if "dimension" in in_cfg:
+            self.dim = in_cfg["dimension"]
+        
+        if not self.out_folder:
+            self.out_folder = os.path.join(self.in_folder, "output")
+        if not self.staging_folder:
+            self.staging_folder = os.path.join(self.in_folder, "staging")
+        if not self.dim:
+            self.dim = 1024
+
+        if not os.path.exists(self.out_folder):
+            os.makedirs(self.out_folder)
+        if not os.path.exists(self.staging_folder):
+            os.makedirs(self.staging_folder)
+
+        self.globals = Globals(self.in_config)
+        self.images = get_images(self.in_folder, self.staging_folder)
+        print(f"STATUS: loaded {len(self.images)} images, {len([i for i in self.images if i.tags])} have tags")
+        if len(self.images) == 0:
+            print(f"ERROR: no images found!")
+            exit(1)
+
+        for i in self.images:
+            i.cache = self.cache
+            i.globals = self.globals
+
+        self.buildCropWorker()
+
+    def setInputFolder(self, folder, fresh):
+        if not folder:
+            if fresh:
+                cfg = get_json(CONFIG)
+                if "input" in cfg:
+                    folder = cfg["input"]
+            if not folder:
+                folder = str(QFileDialog.getExistingDirectory(None, "Select Input Folder"))
+        if not folder:
+            return False
+
+        self.in_folder = folder
+        self.load()
+
+        return True
+
+    def buildCropWorker(self):
+        if self.cropWorker:
+            self.cropWorkerStop.emit()
+            while self.cropWorker.pool.activeThreadCount() > 0:
+                time.sleep(0.01)
+            self.cropWorker.deleteLater()
+
+        self.cropWorker = CropWorker(self.images, self.out_folder, self.dim)
+        self.cropWorkerActive = False
+        self.cropWorkerProgress = 0.0
+        self.cropWorkerStatus = ""
+        self.cropInit()
 
     ### Properties
 
@@ -868,6 +921,7 @@ class Backend(QObject):
         self.imageUpdated.emit()
         self.tagsUpdated.emit()
         self.suggestionsUpdated.emit()
+        self.previewUpdated.emit()
         self.updated.emit()
 
     @pyqtProperty('QString', notify=updated)
@@ -902,7 +956,7 @@ class Backend(QObject):
     def dimension(self):
         return self.dim
 
-    @pyqtProperty('QString', notify=imageUpdated)
+    @pyqtProperty('QString', notify=previewUpdated)
     def preview(self):
         if self.isShowingGlobal:
             return "qrc:/icons/globe.png"
@@ -1062,7 +1116,7 @@ class Backend(QObject):
         if self.isShowingGlobal:
             return
 
-        x, y, w, h = positionCenter(fw, fh, cw)
+        x, y, w, h = positionContain(fw, fh, cw)
         self.current.setCrop(fx/cw, fy/cw, fw/w)
 
         self.setPreview()
@@ -1076,18 +1130,18 @@ class Backend(QObject):
         self.changedUpdated.emit()
 
     @pyqtSlot()
-    def center(self):
+    def contain(self):
         if self.isShowingGlobal:
             return
-        self.current.center()
+        self.current.contain()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
     
     @pyqtSlot()
-    def fill(self):
+    def center(self):
         if self.isShowingGlobal:
             return
-        self.current.fill()
+        self.current.center()
         self.imageUpdated.emit()
         self.changedUpdated.emit()
 
@@ -1267,7 +1321,6 @@ class Backend(QObject):
 
     @pyqtSlot(bool)
     def ddbSetAdding(self, adding):
-        print(adding)
         self.ddbAdd = adding
         self.updated.emit()
 
@@ -1366,6 +1419,58 @@ class Backend(QObject):
     def openOutputFolder(self):
         QDesktopServices.openUrl(QUrl(f"file:///{self.out_folder}"))
 
+    @pyqtSlot()
+    def doLoad(self):
+        if not self.setInputFolder("", False):
+            return
+        self.setActive(0)
+        self.saveConfig()
+
+    @pyqtSlot()
+    def setStagingFolder(self):
+        folder = str(QFileDialog.getExistingDirectory(None, "Select Staging Folder"))
+        if not folder:
+            return
+        
+        self.staging_folder = folder
+        self.saveConfig()
+        self.setInputFolder(self.in_folder, False)
+        self.setActive(0)
+    
+    @pyqtSlot()
+    def setOutputFolder(self):
+        folder = str(QFileDialog.getExistingDirectory(None, "Select Output Folder"))
+        if not folder:
+            return
+        
+        self.out_folder = folder
+        self.saveConfig()
+
+        self.buildCropWorker()
+
+
+    @pyqtSlot(int)
+    def setDimension(self, dim):
+        if dim <= 0 or dim%32 != 0:
+            return
+        self.dim = dim 
+        self.updated.emit()
+        self.saveConfig()
+
+        self.setPreview()
+        self.previewUpdated.emit()
+
+        self.buildCropWorker()
+
+    @pyqtSlot()
+    def openProjectPage(self):
+        QDesktopServices.openUrl(QUrl("https://github.com/arenatemp/sd-tagging-helper/"))
+    
+    @pyqtSlot()
+    def update(self):
+        subprocess.run(["git", "pull"])
+        print("INFO: restart program to see changes")
+
     ## Callbacks
 
     @pyqtSlot(float, 'QString')
@@ -1430,7 +1535,6 @@ class Backend(QObject):
         self.previewCount += 1
 
     def cropInit(self):
-        self.cropThread = QThread(self)
         self.cropWorker.progressCallback.connect(self.cropProgressCallback)
         self.cropWorkerSetup.connect(self.cropWorker.setup)
         self.cropWorkerStart.connect(self.cropWorker.start)
@@ -1462,71 +1566,19 @@ class Backend(QObject):
 
     def saveConfig(self):
         put_json({"fav": self.fav, "freq": self.freq, "webui": self.webui_folder,
-                  "colors": self.isShowingTagColors, "prefixing": self.isPrefixingTags}, CONFIG)
+                  "colors": self.isShowingTagColors, "prefixing": self.isPrefixingTags, "input": self.in_folder}, CONFIG)
+        put_json({"output": self.out_folder, "staging": self.staging_folder, "dimension": self.dim}, self.in_config)
 
 def start():
     parser = argparse.ArgumentParser(description='manual image tag/cropping helper GUI')
     parser.add_argument('--input', type=str, help='folder to load images with optional associated tag file (eg: img.png, img.png.txt)')
-    parser.add_argument('--dimension', type=int, help='dimension of output images. defaults to 1024x1024')
-    parser.add_argument('--staging', type=str, help='folder to stage changes for each image. defaults to "input/staging"')
-    parser.add_argument('--output', type=str, help='folder to write the packaged images/tags. defaults to "input/output"')
     parser.add_argument('--tags', type=str, help='optional tag index file. defaults to danbooru tags')
     parser.add_argument('--webui', type=str, help='optional path to stable-diffusion-webui. enables the use of deepdanbooru')
     args = parser.parse_args()
 
     in_folder = args.input
-    dim = args.dimension
-    out_folder = args.output
-    staging_folder = args.staging
     tags_file = args.tags
     webui_folder = args.webui
-
-    QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
-    class Application(QApplication):
-        def event(self, e):
-            return QApplication.event(self, e)
-
-    app = Application(sys.argv)
-    signal.signal(signal.SIGINT, lambda *a: app.quit())
-    app.startTimer(100)
-
-    # let the user choose a folder via the GUI, save it for later
-    if not in_folder:
-        cfg = {}
-        if os.path.isfile(CONFIG):
-            cfg = get_json(CONFIG)
-        if "in_folder" in cfg:
-            in_folder = cfg["in_folder"]
-        else:
-            in_folder = str(QFileDialog.getExistingDirectory(None, "Select Input Folder"))
-            put_json({"in_folder": in_folder}, CONFIG)
-    in_folder = os.path.abspath(in_folder)
-
-    # check all the args, make sure they point to real folders/files, create default folders, etc
-    if in_folder and not os.path.isdir(in_folder):
-        print(f"ERROR: input folder '{in_folder}' does not exist!")
-        exit(1)
-
-    if not out_folder:
-        out_folder = os.path.join(in_folder, "output")
-        if not os.path.exists(out_folder):
-            os.makedirs(out_folder)
-
-    if not os.path.isdir(out_folder):
-        print(f"ERROR: output folder '{out_folder}' does not exist!")
-        exit(1)
-    out_folder = os.path.abspath(out_folder)
-
-    if not staging_folder:
-        staging_folder = os.path.join(in_folder, "staging")
-        if not os.path.exists(staging_folder):
-            os.makedirs(staging_folder)
-    if not os.path.isdir(staging_folder):
-        print(f"ERROR: staging folder '{staging_folder}' does not exist!")
-        exit(1)
-    staging_folder = os.path.abspath(staging_folder)
     
     if webui_folder and not os.path.isdir(webui_folder):
         print(f"ERROR: webui folder '{webui_folder}' does not exist!")
@@ -1540,13 +1592,19 @@ def start():
         print(f"ERROR: tags file '{tags_file}' does not exist!")
         exit(1)
 
-    if not dim:
-        dim = 1024
-    if dim % 32 != 0 or dim <= 0:
-        print(f"ERROR: dimension of '{dim}' is not valid!")
-    
+    QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
+    class Application(QApplication):
+        def event(self, e):
+            return QApplication.event(self, e)
+
+    app = Application(sys.argv)
+    signal.signal(signal.SIGINT, lambda *a: app.quit())
+    app.startTimer(100)
+
     # spin up the GUI
-    backend = Backend(in_folder, staging_folder, out_folder, tags_file, webui_folder, dim, parent=app)
+    backend = Backend(in_folder, tags_file, webui_folder, parent=app)
 
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", backend.previewProvider)

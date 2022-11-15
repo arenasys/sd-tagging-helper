@@ -272,17 +272,21 @@ Item {
     }
 
     Rectangle {
-        z:10
+        z: 10
         id: favDivider
         anchors.left: parent.left
         anchors.right: parent.right
         height: 5
-        property int minY: sugDivider.y + 5
-        property int maxY: parent.height-5
+
+        y: parent.height - offset
+
+        property var offset: parent.height/3
+        property int minY: 5
+        property int maxY: parent.height-(sugDivider.y + 5)
         color: "#404040"
 
         Component.onCompleted: {
-            y = 2*parent.height/3
+            offset = parent.height/3
         }
 
         MouseArea {
@@ -290,19 +294,17 @@ Item {
             hoverEnabled: true
             onPositionChanged: {
                 if(pressedButtons) {
-                    favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y + mouseY))
+                    favDivider.offset = Math.max(favDivider.minY, Math.min(favDivider.maxY, root.height - (favDivider.y + mouseY)))
                 }
             }
         }
 
-        onMinYChanged: {
-            favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y))
-        }
-
         onMaxYChanged: {
-            favDivider.y = Math.min(favDivider.maxY, Math.max(favDivider.minY, favDivider.y))
+            favDivider.offset = Math.max(favDivider.minY, Math.min(favDivider.maxY, favDivider.offset))
         }
     }
+
+    
 
     Rectangle {
         id: favLabel

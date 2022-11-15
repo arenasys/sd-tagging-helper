@@ -26,7 +26,10 @@ Menu {
                 anchors.leftMargin: 6
                 visible: menuItem.checkable
                 radius: 3
-                color: "#303030"
+                color: "#606060"
+
+                border.color: "#505050"
+                border.width: 3
 
                 Image {
                     id: img
@@ -43,7 +46,7 @@ Menu {
                     visible:  menuItem.checked
                     anchors.fill: img
                     source: img
-                    color: "#606060"
+                    color: "#eee"
                 }
             }
         }

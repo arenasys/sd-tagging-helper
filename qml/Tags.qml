@@ -13,7 +13,7 @@ Item {
     signal moved(int from, int to)
     signal contextMenu(string tag, int index)
 
-    property var tagColor: ["#0879f8", "#c00004", "#fff", "#c10cad", "#00ab2c", "#fd9200", "#08f4f8"]
+    property var tagColors: ["#0879f8", "#c00004", "#fff", "#c10cad", "#00ab2c", "#fd9200", "#08f4f8"]
 
     function tagAdded() {
         if(backend.prefixingTags) {
@@ -297,7 +297,7 @@ Item {
                     elide: Text.ElideRight
                     text: model.text
                     padding: 5
-                    color: backend.showingTagColors ? backend.tagColors[backend.tagType(model.text)] : "white"
+                    color: backend.showingTagColors ? Qt.lighter(root.tagColors[backend.tagType(model.text)], 1.2) : "white"
                     verticalAlignment: Text.AlignVCenter
                 }
 
