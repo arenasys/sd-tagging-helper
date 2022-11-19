@@ -540,9 +540,9 @@ class Img:
 
     def getTags(self):
         if self.globals:
-            return self.globals.composite(self.tags)
+            return self.globals.composite(self.tags).copy()
         else:
-            return self.tags
+            return self.tags.copy()
 
     def buildPrompt(self):
         return tags_to_prompt(self.getTags())
