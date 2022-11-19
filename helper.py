@@ -263,7 +263,7 @@ class CropRunnable(QRunnable):
         elif self.prompt_mode == 1:
             self.img.writePromptJson(img_path+".json")
         elif self.prompt_mode == 2 and self.img.tags:
-            tags = self.img.tags.copy()
+            tags = self.img.getTags()
             while True:
                 img_path = to_filename(self.out_folder, tags)
                 if len(img_path) < MX_PATH and len(img_path)-len(self.out_folder) < MX_FILE:
@@ -538,11 +538,14 @@ class Img:
 
         return crop
 
-    def buildPrompt(self):
+    def getTags(self):
         if self.globals:
-            return tags_to_prompt(self.globals.composite(self.tags))
+            return self.globals.composite(self.tags)
         else:
-            return tags_to_prompt(self.tags)
+            return self.tags
+
+    def buildPrompt(self):
+        return tags_to_prompt(self.getTags())
 
     def writeCrop(self, crop_file, dim):
         if not self.ready:
