@@ -166,17 +166,13 @@ class DDBWorker(QObject):
 
     def __init__(self,  parent=None):
         super().__init__(parent)
-        self.image = None
+        self.model = None
 
     def add_import_paths(self, webui_folder):
         self.webui_folder = webui_folder
-        self.deep_folder = os.path.join(self.webui_folder, 'models', 'deepbooru')
-
         sys.path.insert(0, self.webui_folder)
-        sys.path.insert(0, self.deep_folder)
 
         venv_folder = os.path.join(self.webui_folder, 'venv', 'lib', '*')
-
         for venv_path in glob.glob(venv_folder, recursive = True):
             if not venv_path.endswith("site-packages"):
                 venv_path = os.path.join(venv_path, "site-packages")
@@ -184,58 +180,52 @@ class DDBWorker(QObject):
             if os.path.isdir(venv_path):
                 sys.path.insert(0, venv_path)
 
-
     @pyqtSlot()
     def load(self):
-        import deepdanbooru as dd
-        import tensorflow as tf
-        import numpy as np
-        model_path = os.path.abspath(self.deep_folder)
-        self.tags = dd.project.load_tags_from_project(model_path)
-        self.model = dd.project.load_model_from_project(model_path, compile_model=False)
+        model_path = os.path.join(self.webui_folder, "models", "torch_deepdanbooru", "model-resnet_custom_v3.pt")
+
+        if not os.path.exists(model_path):
+            print("NO DDB MODEL FOUND")
+            return
+
+        import torch
+        from modules import deepbooru_model
+        self.model = deepbooru_model.DeepDanbooruModel()
+
+        self.model.load_state_dict(torch.load(model_path, map_location="cpu"))
+        self.model.eval()
+
         self.loadedCallback.emit()
 
     @pyqtSlot(int, 'QString', bool, float, float, float)
     def interrogate(self, size, file, ready, x, y, s):
-        import deepdanbooru as dd
-        import tensorflow as tf
-        import numpy as np
-
         img = Img(file, "")
         if ready:
             img.setCrop(x,y,s)
         else:
             img.prepare()
-        
-        image = img.doCrop(size)
 
-        width = self.model.input_shape[2]
-        height = self.model.input_shape[1]
-        image = np.array(image)
-        image = tf.image.resize(
-            image,
-            size=(height, width),
-            method=tf.image.ResizeMethod.AREA,
-            preserve_aspect_ratio=True,
-        )
-        image = image.numpy()  # EagerTensor to np.array
-        image = dd.image.transform_and_pad_image(image, width, height)
-        image = image / 255.0
-        image_shape = image.shape
-        image = image.reshape((1, image_shape[0], image_shape[1], image_shape[2]))
+        img = img.doCrop(size)
 
-        v = self.model.predict(image)[0]
+        import numpy as np
+        import torch
+
+        a = np.expand_dims(np.array(img, dtype=np.float32), 0) / 255
+
+        with torch.no_grad():
+            x = torch.from_numpy(a)
+            y = self.model(x)[0]
+            y = y.detach().cpu().numpy()
 
         outputs = []
-
-        for i, tag in enumerate(self.tags):
-            outputs += [(tag, v[i])]
+        for tag, probability in zip(self.model.tags, y):
+            outputs += [(tag, probability)]
         outputs.sort(key=lambda a: a[1], reverse=True)        
-        
         if len(outputs) > 100:
             outputs = outputs[:100]
+        outputs = [t[0] for t in outputs]
 
-        self.resultCallback.emit([t[0] for t in outputs])
+        self.resultCallback.emit(outputs)
 
 class CropRunnableSignals(QObject):
     completed = pyqtSignal(int, 'QString')
