@@ -12,16 +12,21 @@ MenuBar {
             implicitHeight: menuBarHeight
             implicitWidth: menuBarWidth
             hoverEnabled: true
-            contentItem: UniformText {
-                text: menuBarItem.text
-                opacity: enabled ? 1.0 : 0.3
-                color: menuBarItem.hovered  ? "#aaa" : "#fff"
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
+            contentItem: Item {
+
             }
 
             background: Rectangle {
+                UniformText {
+                    text: menuBarItem.text
+                    opacity: enabled ? 1.0 : 0.3
+                    color: menuBarItem.hovered  ? "#aaa" : "#fff"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                    anchors.fill: parent
+                }
+
                 implicitWidth: menuBarWidth
                 implicitHeight: menuBarHeight
                 opacity: enabled ? 1 : 0.3
