@@ -31,7 +31,7 @@ Item {
         id: search
         color: "white"
         font.bold: false
-        font.pointSize: 12
+        font.pointSize: 11
         selectByMouse: true
         anchors.left: parent.left
         anchors.top: parent.top
@@ -72,12 +72,12 @@ Item {
             }
         }
 
-        Text {
+        UniformText {
             text: "Search..."
             anchors.fill: search
             verticalAlignment: Text.AlignVCenter
             font.bold: false
-            font.pointSize: 12
+            font.pointSize: 11
             leftPadding: 8
             topPadding: 1
             color: "#aaa"

@@ -66,7 +66,7 @@ Item {
         Column {
             anchors.centerIn: parent
             width: parent.width
-            Text {
+            UniformText {
                 id: addText
                 visible: backend.results.length == 0
                 text: "Add <font color=\"#fff\">" + searchBox.text + "</font> to tags?"
@@ -75,7 +75,7 @@ Item {
                 width: parent.width - 20
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
-                font.pixelSize: 15
+                font.pointSize: 11
                 font.bold: false
                 color: "#aaa"
                 verticalAlignment: Text.AlignVCenter
@@ -190,9 +190,9 @@ Item {
         height: 30
         anchors.left: sugDivider.left
         anchors.right: sugDivider.right
-        Text {
+        UniformText {
             text: "Suggestions"
-            font.pixelSize: 15
+            font.pointSize: 11
             leftPadding: 8
             rightPadding: 16
             font.bold: false
@@ -313,9 +313,9 @@ Item {
         height: 30
         anchors.left: favDivider.left
         anchors.right: favDivider.right
-        Text {
+        UniformText {
             text: "Favourites"
-            font.pixelSize: 15
+            font.pointSize: 11
             leftPadding: 8
             rightPadding: 16
             font.bold: false

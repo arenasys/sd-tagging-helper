@@ -12,10 +12,10 @@ import statistics
 import signal
 import subprocess
 
-from PIL import Image, ImageDraw, ImageQt
+from PIL import Image, ImageDraw
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QThread, QCoreApplication, Qt, QRunnable, QThreadPool, QPointF
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtQml import QQmlApplicationEngine
+from PyQt5.QtGui import QDesktopServices, QFont, QImage
+from PyQt5.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
 from PyQt5.QtWidgets import QFileDialog, QApplication
 from PyQt5.QtQuick import QQuickImageProvider
 
@@ -669,9 +669,9 @@ class PreviewProvider(QQuickImageProvider):
     def requestImage(self, p_str, size):
         if p_str != self.last:
             img = self.source.doCrop(self.dim)
-            self.preview = ImageQt.ImageQt(img)
+            data = img.convert("RGB").tobytes("raw", "RGB")
+            self.preview = QImage(data, img.size[0], img.size[1], QImage.Format_RGB888)
             self.last = p_str
-            
             self.signals.updated.emit()
 
         return self.preview, self.preview.size()
@@ -1610,8 +1610,10 @@ def start():
     ctx = engine.rootContext()
     ctx.setContextProperty("backend", backend)
 
-    engine.load(QUrl('qrc:/Main.qml'))
+    qmlRegisterSingletonType(QUrl("qrc:///Constants.qml"), "gallery.constants", 1, 0, "Constants")
 
+    engine.load(QUrl('qrc:/Main.qml'))
+    
     sys.exit(app.exec())
 
 def excepthook(exc_type, exc_value, exc_tb):

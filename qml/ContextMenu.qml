@@ -13,7 +13,7 @@ Menu {
         implicitHeight: menuItemSize
         hoverEnabled: true
         //font.bold: true
-        font.pixelSize: 14
+        font.pointSize: 14
 
         indicator: Item {
             implicitWidth: menuItemSize
@@ -51,7 +51,7 @@ Menu {
             }
         }
 
-        contentItem: Text {
+        contentItem: UniformText {
             leftPadding: menuItem.checkable ? menuItem.indicator.width : 0
             text: menuItem.text
             font: menuItem.font

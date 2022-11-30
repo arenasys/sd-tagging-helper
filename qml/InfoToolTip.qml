@@ -3,8 +3,8 @@ import QtQuick.Controls 2.15
 
 ToolTip {
     id: control
-    font.pixelSize: 14
-    contentItem: Text {
+    font.pointSize: 10
+    contentItem: UniformText {
 
         text: control.text
         font: control.font

@@ -45,11 +45,11 @@ TabButton {
                 color: "#303030"
             }
 
-            Text {
+            UniformText {
                 anchors.fill: parent
-                topPadding: 2
+                topPadding: 1
                 text: control.text
-                font: control.font
+                font.pointSize: 10.9
                 opacity: enabled ? 1.0 : 0.3
                 color: "white"
                 horizontalAlignment: Text.AlignHCenter

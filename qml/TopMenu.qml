@@ -15,28 +15,17 @@ Menu {
         contentItem: Item {
             implicitWidth: 200
             implicitHeight: menuItemSize
-            Text {
+            UniformText {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 leftPadding: menuItem.checkable ? menuItem.indicator.width : 6
                 text: menuItem.text
-                font: menuItem.font
                 opacity: enabled ? 1.0 : 0.3
                 color: menuItem.hovered ? "#eee" : "#fff"
                 horizontalAlignment: Text.AlignLeft
                 verticalAlignment: Text.AlignVCenter
-            }
-            Text {
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                anchors.right: parent.right
-                text: ""
-                font: menuItem.font
-                opacity: enabled ? 1.0 : 0.3
-                color: menuItem.hovered ? "#999" : "#aaa"
-                horizontalAlignment: Text.AlignLeft
-                verticalAlignment: Text.AlignVCenter
+                font.pointSize: 10.5
             }
         }
 

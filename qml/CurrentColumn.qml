@@ -30,9 +30,9 @@ Item {
         height: 30
         anchors.left: parent.left
         anchors.right: parent.right
-        Text {
+        UniformText {
             text: "Active Tags"
-            font.pixelSize: 15
+            font.pointSize: 11
             leftPadding: 8
             rightPadding: 16
             font.bold: false

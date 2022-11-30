@@ -288,7 +288,7 @@ Item {
                     }
                 }
 
-                Text {
+                UniformText {
                     id: textLabel
                     anchors.left: padding.right
                     anchors.top: parent.top
@@ -296,6 +296,7 @@ Item {
                     width: favBg.visible ? parent.width - 30 : parent.width - 10
                     elide: Text.ElideRight
                     text: model.text
+                    font.pointSize: 10.5
                     padding: 5
                     color: backend.showingTagColors ? Qt.lighter(root.tagColors[backend.tagType(model.text)], 1.2) : "white"
                     verticalAlignment: Text.AlignVCenter

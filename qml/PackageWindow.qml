@@ -24,11 +24,10 @@ PopupWindow {
         focusRelease()
     }
 
-    Text {
+    UniformText {
         id: imageLabel
         text: "Image"
-        font.pixelSize: 15
-        x: 10
+        x: 5
         y: packageWindow.header.height + 10
         height: 30
         leftPadding: 4
@@ -40,7 +39,7 @@ PopupWindow {
 
     Combo {
         id: imageMode
-        font.pixelSize: 15
+        font.pointSize: 10
         anchors.top: imageLabel.top
         anchors.left: imageLabel.right
         currentIndex: 0
@@ -51,7 +50,7 @@ PopupWindow {
 
     Combo {
         id: extMode
-        font.pixelSize: 15
+        font.pointSize: 10
         visible: imageMode.currentIndex <= 2
         anchors.top: imageLabel.top
         anchors.left: imageMode.right
@@ -62,10 +61,9 @@ PopupWindow {
         model: ["jpg", "png", "original"]
     }
 
-    Text {
+    UniformText {
         id: promptLabel
         text: "Prompt"
-        font.pixelSize: 15
         anchors.left: imageLabel.left
         y: imageLabel.y + 40
         height: 30
@@ -78,7 +76,7 @@ PopupWindow {
 
     Combo {
         id: promptMode
-        font.pixelSize: 15
+        font.pointSize: 10
         anchors.top: promptLabel.top
         anchors.left: imageMode.left
         anchors.right: extMode.right
@@ -87,10 +85,9 @@ PopupWindow {
         model: ["txt file", "json file", "filename", "none"]
     }
 
-    Text {
+    UniformText {
         id: threadLabel
         text: "Threads"
-        font.pixelSize: 15
         anchors.left: imageLabel.left
         y: imageLabel.y + 80
         height: 30
@@ -101,10 +98,10 @@ PopupWindow {
         verticalAlignment: Text.AlignVCenter
     }
 
-    Text {
+    UniformText {
         id: threadCountLabel
         text: threadCount.value
-        font.pixelSize: 15
+        font.pointSize: 11
         anchors.left: threadLabel.right
         anchors.leftMargin: -8
         anchors.top: threadLabel.top
@@ -117,9 +114,10 @@ PopupWindow {
 
     Slide {
         id: threadCount
-        font.pixelSize: 15
+        font.pointSize: 11
         anchors.top: threadLabel.top
         anchors.left: threadCountLabel.right
+        anchors.leftMargin: 8
         anchors.right: extMode.right
         height: 30
         from: 1
@@ -171,10 +169,9 @@ PopupWindow {
             color: "green"
         }
 
-        Text {
+        UniformText {
             id: progressLabel
             text:  backend.cropStatus
-            font.pixelSize: 13
             anchors.fill: parent
             leftPadding: 4
             rightPadding: 16
@@ -191,7 +188,7 @@ PopupWindow {
         anchors.top: startButton.top
         anchors.bottom: startButton.bottom
         anchors.right: promptMode.right
-        width: 30
+        width: 50
         height: 30
         icon: "qrc:/icons/folder.svg"
         tooltip: "Open Folder"

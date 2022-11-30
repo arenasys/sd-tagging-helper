@@ -2,35 +2,35 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 
 MenuBar {
-    readonly property real menuBarSize: 20
-    height: menuBarSize
-    contentHeight: menuBarSize
+    readonly property real menuBarHeight: 20
+    readonly property real menuBarWidth: 50
+    height: menuBarHeight
+    contentHeight: menuBarHeight
 
     delegate: MenuBarItem {
             id: menuBarItem
-            implicitHeight: menuBarSize
+            implicitHeight: menuBarHeight
+            implicitWidth: menuBarWidth
             hoverEnabled: true
-            contentItem: Text {
+            contentItem: UniformText {
                 text: menuBarItem.text
-                font: menuBarItem.font
                 opacity: enabled ? 1.0 : 0.3
                 color: menuBarItem.hovered  ? "#aaa" : "#fff"
-                horizontalAlignment: Text.AlignLeft
+                horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
             }
 
             background: Rectangle {
-                implicitWidth: menuBarSize
-                implicitHeight: menuBarSize
+                implicitWidth: menuBarWidth
+                implicitHeight: menuBarHeight
                 opacity: enabled ? 1 : 0.3
                 color: menuBarItem.hovered ?  "#505050" : "transparent"
             }
     }
 
     background: Rectangle {
-        implicitWidth: menuBarSize
-        implicitHeight: menuBarSize
+        implicitHeight: menuBarHeight
         color: "#404040"
     }
 }

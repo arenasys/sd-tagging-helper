@@ -422,10 +422,10 @@ Rectangle {
         Row {
             width: Math.min(parent.width, implicitWidth)
             anchors.right: parent.right
-            Text {
+            UniformText {
                 text: sourceDimension() + " ➜ " + backend.dimension
                 rightPadding: 10
-                font.pixelSize: 15
+                font.pointSize: 11
                 font.bold: true
                 height: 30
                 color: "#c0c0c0"//sourceDimension() >= backend.dimension ? "green" : "#ba0000"

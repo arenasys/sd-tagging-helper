@@ -32,11 +32,11 @@ Popup {
         Image {
             id: img
             source: titleIcon
-            width: parent.height - 4
+            width: parent.height - 8
             height: width
             sourceSize: Qt.size(width, height)
             x: (title.width - title.contentWidth) / 2 - width - 5
-            y: 2
+            y: 4
 
         }
         ColorOverlay {
@@ -69,12 +69,12 @@ Popup {
         }
 
 
-        Text {
+        UniformText {
             id: title
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
             text: popup.title
-            font.pixelSize: 16
+            font.pointSize: 11
             font.bold: true
             leftPadding: 4
             color: "#707070"

@@ -10,7 +10,7 @@ ComboBox {
         height: 30
         hoverEnabled: true
 
-        contentItem: Text {
+        contentItem: UniformText {
             text: modelData
             color: "white"
             font: control.font
@@ -51,7 +51,7 @@ ComboBox {
         }
     }
 
-    contentItem: Text {
+    contentItem: UniformText {
         leftPadding: 5
         rightPadding: control.indicator.width + control.spacing
 
