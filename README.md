@@ -3,6 +3,9 @@
 A GUI to help with manual tagging and cropping. Written in Python/Qt5.
 ![example](https://github.com/arenatemp/sd-tagging-helper/raw/master/screenshot.png)
 
+### Usage
+Please visit the [wiki](https://github.com/arenatemp/sd-tagging-helper/wiki) for additional information and tips.
+
 ### Requirements
 Pillow and PyQt5
 ```
