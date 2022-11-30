@@ -181,6 +181,7 @@ class DDBWorker(QObject):
 
     @pyqtSlot()
     def load(self):
+        print("STATUS: loading deepdanbooru model...")
         model_path = os.path.join(self.webui_folder, "models", "torch_deepdanbooru", "model-resnet_custom_v3.pt")
 
         if not os.path.exists(model_path):
@@ -189,10 +190,11 @@ class DDBWorker(QObject):
 
         import torch
         from modules import deepbooru_model
+
         self.model = deepbooru_model.DeepDanbooruModel()
 
         self.model.load_state_dict(torch.load(model_path, map_location="cpu"))
-        self.model.eval()
+        self.model.to("cpu", torch.float32)
 
         self.loadedCallback.emit()
 
@@ -212,10 +214,9 @@ class DDBWorker(QObject):
         a = np.expand_dims(np.array(img, dtype=np.float32), 0) / 255
 
         with torch.no_grad():
-            x = torch.from_numpy(a)
-            y = self.model(x)[0]
-            y = y.detach().cpu().numpy()
-
+            x = torch.from_numpy(a).to("cpu")
+            y = self.model(x)[0].detach().cpu().numpy()
+        
         outputs = []
         for tag, probability in zip(self.model.tags, y):
             outputs += [(tag, probability)]
@@ -741,6 +742,7 @@ class Backend(QObject):
     cropWorkerStop = pyqtSignal()
 
     ddbWorkerUpdated = pyqtSignal()
+    ddbWorkerLoad = pyqtSignal()
     ddbWorkerInterrogate = pyqtSignal('QString', bool, float, float, float)
 
     def __init__(self, in_folder, tags_file, webui_folder, parent=None):
@@ -1539,10 +1541,14 @@ class Backend(QObject):
         self.ddbWorker.resultCallback.connect(self.ddbResultCallback)
         self.ddbWorker.loadedCallback.connect(self.ddbLoadedCallback)
         self.ddbWorkerInterrogate.connect(self.ddbWorker.interrogate)
-        self.ddbWorker.moveToThread(self.ddbThread)
-        self.ddbThread.started.connect(self.ddbWorker.load)
-        self.ddbThread.start()
 
+        # torch segfaults if we load the model in another thread (?)
+        self.ddbWorkerLoad.connect(self.ddbWorker.load, Qt.DirectConnection)
+
+        self.ddbThread.start()
+        self.ddbWorker.moveToThread(self.ddbThread)
+        self.ddbWorkerLoad.emit()
+        
     def loadConfig(self):
         j = get_json(CONFIG)
         if 'fav' in j:
