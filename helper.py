@@ -166,7 +166,6 @@ class DDBWorker(QObject):
 
     def __init__(self,  parent=None):
         super().__init__(parent)
-        self.model = None
 
     def add_import_paths(self, webui_folder):
         self.webui_folder = webui_folder
@@ -197,15 +196,15 @@ class DDBWorker(QObject):
 
         self.loadedCallback.emit()
 
-    @pyqtSlot(int, 'QString', bool, float, float, float)
-    def interrogate(self, size, file, ready, x, y, s):
+    @pyqtSlot('QString', bool, float, float, float)
+    def interrogate(self, file, ready, x, y, s):
         img = Img(file, "")
         if ready:
             img.setCrop(x,y,s)
         else:
             img.prepare()
 
-        img = img.doCrop(size)
+        img = img.doCrop(512)
 
         import numpy as np
         import torch
@@ -742,7 +741,7 @@ class Backend(QObject):
     cropWorkerStop = pyqtSignal()
 
     ddbWorkerUpdated = pyqtSignal()
-    ddbWorkerInterrogate = pyqtSignal(int, 'QString', bool, float, float, float)
+    ddbWorkerInterrogate = pyqtSignal('QString', bool, float, float, float)
 
     def __init__(self, in_folder, tags_file, webui_folder, parent=None):
         super().__init__(parent)
@@ -1283,7 +1282,7 @@ class Backend(QObject):
         if self.ddbCurrent == -1:
             self.ddbCurrent = self.imgIndex
             im = self.current
-            self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+            self.ddbWorkerInterrogate.emit(im.source, im.ready, im.offset_x, im.offset_y, im.scale)
         
         self.suggestionsUpdated.emit()
     
@@ -1297,9 +1296,9 @@ class Backend(QObject):
         
         im = self.images[self.ddbCurrent]
         if im.ready:
-            self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, im.offset_x, im.offset_y, im.scale)
+            self.ddbWorkerInterrogate.emit(im.source, im.ready, im.offset_x, im.offset_y, im.scale)
         else:
-            self.ddbWorkerInterrogate.emit(self.dim, im.source, im.ready, 0.0, 0.0, 0.0)
+            self.ddbWorkerInterrogate.emit(im.source, im.ready, 0.0, 0.0, 0.0)
         self.suggestionsUpdated.emit()
 
     @pyqtSlot()
