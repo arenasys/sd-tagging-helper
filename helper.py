@@ -1222,6 +1222,19 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
+    
+    @pyqtSlot()
+    def sortTagsAlpha(self):
+        if self.isShowingGlobal:
+            return
+            
+        tags = [t for t in self.current.tags]
+        tags = sorted(tags)
+
+        self.current.setTags(tags)
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
 
     @pyqtSlot()
     def fullReset(self):

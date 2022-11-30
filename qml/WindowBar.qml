@@ -169,6 +169,12 @@ TopMenuBar {
                 }
             }
             Action {
+                text: "Sort alphabetically"
+                onTriggered: {
+                    backend.sortTagsAlpha()
+                }
+            }
+            Action {
                 text: "Remove unknown"
                 onTriggered: {
                     backend.cleanTags()

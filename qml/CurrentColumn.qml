@@ -71,6 +71,24 @@ Item {
                 onPressed: {
                     backend.sortTags()
                 }
+                onContextMenu: {
+                    sortContextMenu.popup()
+                }
+            }
+
+            ContextMenu {
+                id: sortContextMenu
+                Action {
+                    text: "Sort alphabetically" 
+                    
+                    onTriggered: {
+                        backend.sortTagsAlpha()
+                    }
+                }
+
+                onClosed: {
+                    root.focusRelease()
+                }
             }
         }
     }

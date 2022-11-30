@@ -53,7 +53,8 @@ Ctrl + L - Switch to an alternate GUI layout
 Ctrl + K - Toggle tag colors
 Ctrl + Q - Interrogate image via DeepDanbooru
 Ctrl + R - Remove unknown tag
-Ctrl + T - Sort tag by popularity
+Ctrl + T - Sort tags by popularity
+Ctrl + Y - Sort tags alphabetically
 Ctrl + G - View global image
 
 Left  - Previous image
