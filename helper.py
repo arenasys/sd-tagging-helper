@@ -179,6 +179,9 @@ class DDBWorker(QObject):
             if os.path.isdir(venv_path):
                 sys.path.insert(0, venv_path)
 
+        # torch will segfault if we dont import it on the main thread first
+        import torch
+
     @pyqtSlot()
     def load(self):
         print("STATUS: loading deepdanbooru model...")
@@ -190,7 +193,6 @@ class DDBWorker(QObject):
 
         import torch
         from modules import deepbooru_model
-
         self.model = deepbooru_model.DeepDanbooruModel()
 
         self.model.load_state_dict(torch.load(model_path, map_location="cpu"))
@@ -1227,7 +1229,7 @@ class Backend(QObject):
     def sortTagsAlpha(self):
         if self.isShowingGlobal:
             return
-            
+
         tags = [t for t in self.current.tags]
         tags = sorted(tags)
 
@@ -1555,8 +1557,7 @@ class Backend(QObject):
         self.ddbWorker.loadedCallback.connect(self.ddbLoadedCallback)
         self.ddbWorkerInterrogate.connect(self.ddbWorker.interrogate)
 
-        # torch segfaults if we load the model in another thread (?)
-        self.ddbWorkerLoad.connect(self.ddbWorker.load, Qt.DirectConnection)
+        self.ddbWorkerLoad.connect(self.ddbWorker.load)
 
         self.ddbThread.start()
         self.ddbWorker.moveToThread(self.ddbThread)
