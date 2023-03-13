@@ -1224,7 +1224,31 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
-    
+
+    @pyqtSlot()
+    def copyTagsFromFile(self):
+        source_file = QFileDialog.getOpenFileName(None, "Select Source File",
+                                                  directory=self.current.source)[0]
+        source_dir_name = os.path.dirname(source_file)
+        source_base_name = os.path.basename(source_file)
+
+        stage_file = os.path.join(source_dir_name, 'staging', source_base_name + '.json')
+        try:
+            with open(stage_file, mode='r') as f:
+                tags = json.load(f)['tags']
+        except Exception as e:
+            print(f"Error when reading file: {e}")
+            return
+
+        if len(tags) < 2:
+            print(f"Too few tags read for the file {os.path.basename(source_file)}: {tags}")
+            return
+        for tag in tags:
+            self.current.addTag(tag)
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
+
     @pyqtSlot()
     def sortTagsAlpha(self):
         if self.isShowingGlobal:
