@@ -897,7 +897,6 @@ class Backend(QObject):
 
         self.imgIndex = a
         self.current = self.images[self.imgIndex]
-
         # setting the default crop state is expensive
         # (requires loading the image)
         # so only do it on demand
@@ -1248,6 +1247,29 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
+
+    @pyqtSlot()
+    def jumpTo(self):
+        current_dir_name = os.path.dirname(self.current.source)
+
+        dest_file = QFileDialog.getOpenFileName(None, "Jump to which file?",
+                                                  directory=self.current.source)[0]
+        dest_dir_name = os.path.dirname(dest_file)
+        if (current_dir_name != dest_dir_name):
+            print("You cannot jump to another directory")
+            return
+
+        selected = None
+        for idx, img in enumerate(self.images):
+            if os.path.basename(img.source) == os.path.basename(dest_file):
+                selected = idx
+                break
+
+        if selected is None:
+            print(f"Was unable to find this file {dest_file}, maybe try again?")
+            return
+        else:
+            self.active = idx
 
     @pyqtSlot()
     def sortTagsAlpha(self):
