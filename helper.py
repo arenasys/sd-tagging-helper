@@ -363,6 +363,12 @@ class Img:
         self.letterboxs = []
         self.tags = []
 
+        try:
+            with Image.open(self.source) as img:
+                pass
+        except Exception as e:
+            raise Exception(f"failed to load {self.source}, probably corrupted")
+
     def contain(self):
         if not self.w or not self.h:
             with Image.open(self.source) as img:
