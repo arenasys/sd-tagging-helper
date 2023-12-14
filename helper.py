@@ -903,7 +903,6 @@ class Backend(QObject):
 
         self.imgIndex = a
         self.current = self.images[self.imgIndex]
-
         # setting the default crop state is expensive
         # (requires loading the image)
         # so only do it on demand
@@ -1230,7 +1229,54 @@ class Backend(QObject):
         self.tagsUpdated.emit()
         self.changedUpdated.emit()
         self.updated.emit()
-    
+
+    @pyqtSlot()
+    def copyTagsFromFile(self):
+        source_file = QFileDialog.getOpenFileName(None, "Select Source File",
+                                                  directory=self.current.source)[0]
+        source_dir_name = os.path.dirname(source_file)
+        source_base_name = os.path.basename(source_file)
+
+        stage_file = os.path.join(source_dir_name, 'staging', source_base_name + '.json')
+        try:
+            with open(stage_file, mode='r') as f:
+                tags = json.load(f)['tags']
+        except Exception as e:
+            print(f"Error when reading file: {e}")
+            return
+
+        if len(tags) < 2:
+            print(f"Too few tags read for the file {os.path.basename(source_file)}: {tags}")
+            return
+        for tag in tags:
+            self.current.addTag(tag)
+        self.tagsUpdated.emit()
+        self.changedUpdated.emit()
+        self.updated.emit()
+
+    @pyqtSlot()
+    def jumpTo(self):
+        current_dir_name = os.path.dirname(self.current.source)
+
+        dest_file = QFileDialog.getOpenFileName(None, "Jump to which file?",
+                                                  directory=self.current.source)[0]
+        dest_dir_name = os.path.dirname(dest_file)
+        if (current_dir_name != dest_dir_name):
+            print("You cannot jump to another directory")
+            return
+
+        selected = None
+        for idx, img in enumerate(self.images):
+            if os.path.basename(img.source) == os.path.basename(dest_file):
+                selected = idx
+                break
+
+        if selected is None:
+            print(f"Was unable to find this file {dest_file}, maybe try again?")
+            return
+        else:
+            self.active = idx
+
     @pyqtSlot()
     def sortTagsAlpha(self):
         if self.isShowingGlobal:

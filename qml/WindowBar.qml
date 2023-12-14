@@ -135,6 +135,18 @@ TopMenuBar {
                 backend.reset()
             }
         }
+        Action {
+            text: "Copy tags from another image"
+            onTriggered: {
+                backend.copyTagsFromFile()
+            }
+        }
+        Action {
+            text: "Jump to another image"
+            onTriggered: {
+                backend.jumpTo()
+            }
+        }
         TopMenu {
             id: positionMenu
             title: "Position Image"
